@@ -59,6 +59,7 @@ public class Tokenizer {
             return switch (str) {
                 case "fn" -> new Token.FnKeyword();
                 case "return" -> new Token.ReturnKeyword();
+                case "type" -> new Token.TypeKeyword();
                 default -> new Token.Identifier(sb.toString());
             };
         }
@@ -103,6 +104,7 @@ public class Tokenizer {
             case '/' -> new Token.Slash();
             case '@' -> new Token.At();
             case ',' -> new Token.Comma();
+            case '=' -> new Token.Equals();
             default -> null;
         };
     }

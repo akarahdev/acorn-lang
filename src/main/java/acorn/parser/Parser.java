@@ -61,6 +61,7 @@ public class Parser {
             var peek = this.reader.peek();
             switch (peek) {
                 case Token.FnKeyword _ -> list.add(parseFunction(annotations));
+                case Token.TypeKeyword _ -> list.add(parseTypeAlias(annotations));
                 default -> throw new RuntimeException("Invalid start of header at " + peek);
             }
         }
@@ -92,6 +93,20 @@ public class Parser {
                 returnType,
                 params,
                 body,
+                annotations
+        );
+    }
+
+    public Header.TypeAlias parseTypeAlias(List<Annotation> annotations) {
+        this.reader.expect(Token.TypeKeyword.class);
+
+        var name = this.reader.expect(Token.Identifier.class);
+        this.reader.expect(Token.Equals.class);
+        var returnType = this.parseType();
+
+        return new Header.TypeAlias(
+                name.name(),
+                returnType,
                 annotations
         );
     }
@@ -167,6 +182,6 @@ public class Parser {
         if(name.name().equals("cstr")) {
             return new AstType.CString();
         }
-        throw new RuntimeException("Invalid type name: " + name.name());
+        return new AstType.Unresolved(name.name());
     }
 }

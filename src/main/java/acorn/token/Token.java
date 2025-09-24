@@ -25,11 +25,19 @@ public interface Token {
 
     }
 
+    record TypeKeyword() implements Token {
+
+    }
+
     record ReturnKeyword() implements Token {
 
     }
 
     record RightArrow() implements Token {
+
+    }
+
+    record Equals() implements Token {
 
     }
 
