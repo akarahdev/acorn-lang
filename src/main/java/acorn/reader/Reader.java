@@ -2,6 +2,7 @@ package acorn.reader;
 
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class Reader<T, E> {
     T value;
@@ -35,5 +36,15 @@ public class Reader<T, E> {
 
     public E peek() {
         return indexFunction.apply(value, index);
+    }
+
+    public E expect(Predicate<E> predicate) {
+        assert predicate.test(peek());
+        return next();
+    }
+
+    public <EA extends E> EA expect(Class<EA> clazz) {
+        assert clazz.isInstance(peek());
+        return clazz.cast(next());
     }
 }

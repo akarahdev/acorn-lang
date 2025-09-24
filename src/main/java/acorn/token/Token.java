@@ -17,6 +17,10 @@ public interface Token {
 
     }
 
+    record ReturnKeyword() implements Token {
+
+    }
+
     record RightArrow() implements Token {
 
     }
@@ -26,6 +30,14 @@ public interface Token {
     }
 
     record CloseBrace() implements Token {
+
+    }
+
+    record OpenParen() implements Token {
+
+    }
+
+    record CloseParen() implements Token {
 
     }
 

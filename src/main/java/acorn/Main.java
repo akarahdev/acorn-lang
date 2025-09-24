@@ -1,6 +1,8 @@
 package acorn;
 
+import acorn.parser.Parser;
 import acorn.token.Tokenizer;
+import llvm4j.module.Module;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -15,5 +17,13 @@ public class Main {
 
         var tokens = Tokenizer.create(contents).tokenize();
         IO.println(tokens);
+
+        var parser = Parser.create(tokens);
+        var function = parser.parseFunction();
+        IO.println(function);
+
+        var module = Module.builder();
+        function.emit(module);
+        module.build().emit(Paths.get("./build/out.ll"));
     }
 }

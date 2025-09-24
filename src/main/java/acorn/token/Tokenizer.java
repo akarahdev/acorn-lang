@@ -41,6 +41,7 @@ public class Tokenizer {
             var str = sb.toString();
             return switch (str) {
                 case "fn" -> new Token.FnKeyword();
+                case "return" -> new Token.ReturnKeyword();
                 default -> new Token.Identifier(sb.toString());
             };
         }
@@ -63,6 +64,8 @@ public class Tokenizer {
         return switch (stringReader.next()) {
             case '{' -> new Token.OpenBrace();
             case '}' -> new Token.CloseBrace();
+            case '(' -> new Token.OpenParen();
+            case ')' -> new Token.CloseParen();
             case '+' -> new Token.Plus();
             case '-' -> switch (stringReader.peek()) {
                 case '>' -> new Token.RightArrow();
