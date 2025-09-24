@@ -1,15 +1,12 @@
 package acorn.parser;
 
-import acorn.parser.ast.AstType;
-import acorn.parser.ast.Expression;
-import acorn.parser.ast.Header;
-import acorn.parser.ast.Statement;
+import acorn.parser.ast.*;
 import acorn.reader.Reader;
 import acorn.token.Token;
 
-import java.net.http.WebSocket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 public class Parser {
     Reader<List<Token>, Token> reader;
@@ -20,19 +17,82 @@ public class Parser {
         return p;
     }
 
-    public Header.Function parseFunction() {
+    public List<Annotation> parseAnnotations() {
+        var list = new ArrayList<Annotation>();
+
+        while(this.reader.peek() instanceof Token.At) {
+            this.reader.next();
+            var name = this.reader.expect(Token.Identifier.class);
+            List<Expression> args = new ArrayList<>();
+            if(this.reader.peek() instanceof Token.OpenParen) {
+                args = parseTuple(Parser::parseConstant);
+            }
+            list.add(new Annotation(name.name(), args));
+        }
+        return list;
+    }
+
+    public <T> List<T> parseTuple(Function<Parser, T> mapper) {
+        this.reader.expect(Token.OpenParen.class);
+        var args = new ArrayList<T>();
+
+        while(!(this.reader.peek() instanceof Token.CloseParen)) {
+            args.add(mapper.apply(this));
+            if(!(this.reader.peek() instanceof Token.CloseParen)) {
+                this.reader.expect(Token.Comma.class);
+            }
+        }
+        this.reader.expect(Token.CloseParen.class);
+
+        return args;
+    }
+
+    public Header.Parameter parseParameter() {
+        var name = this.reader.expect(Token.Identifier.class);
+        var type = this.parseType();
+        return new Header.Parameter(name.name(), type);
+    }
+
+    public List<Header> parseHeaders() {
+        var list = new ArrayList<Header>();
+
+        while(this.reader.hasNext()) {
+            var annotations = parseAnnotations();
+            var peek = this.reader.peek();
+            switch (peek) {
+                case Token.FnKeyword _ -> list.add(parseFunction(annotations));
+                default -> throw new RuntimeException("Invalid start of header at " + peek);
+            }
+        }
+
+        return list;
+    }
+
+    public Header.Function parseFunction(List<Annotation> annotations) {
         this.reader.expect(Token.FnKeyword.class);
 
         var name = this.reader.expect(Token.Identifier.class);
-        this.reader.expect(Token.OpenParen.class);
-        this.reader.expect(Token.CloseParen.class);
+        var params = this.parseTuple(Parser::parseParameter);
         this.reader.expect(Token.RightArrow.class);
+
         var returnType = this.parseType();
+
+        if(!(this.reader.peek() instanceof Token.OpenBrace)) {
+            return new Header.Function(
+                    name.name(),
+                    returnType,
+                    params,
+                    null,
+                    annotations
+            );
+        }
         var body = this.parseBody();
         return new Header.Function(
                 name.name(),
                 returnType,
-                body
+                params,
+                body,
+                annotations
         );
     }
 
@@ -47,14 +107,13 @@ public class Parser {
     }
 
     public Statement parseStatement() {
-        switch (this.reader.peek()) {
-            case Token.ReturnKeyword returnKeyword -> {
+        return switch (this.reader.peek()) {
+            case Token.ReturnKeyword _ -> {
                 this.reader.next();
-                return new Statement.Ret(this.parseExpression());
+                yield new Statement.Ret(this.parseExpression());
             }
             default -> new Statement.Dropping(this.parseExpression());
-        }
-        return null;
+        };
     }
 
     public Expression parseExpression() {
@@ -62,19 +121,35 @@ public class Parser {
     }
 
     public Expression parseTerm() {
-        var expr = parseBaseValue();
+        var expr = parseInvocation();
         while(reader.peek() instanceof Token.Plus) {
             reader.expect(Token.Plus.class);
-            expr = new Expression.Addition(expr, parseBaseValue());
+            expr = new Expression.Addition(expr, parseInvocation());
         }
         return expr;
     }
 
-    public Expression parseBaseValue() {
+    public Expression parseInvocation() {
+        var expr = parseConstant();
+        while(reader.peek() instanceof Token.OpenParen) {
+            expr = new Expression.Invocation(expr, parseTuple(Parser::parseExpression));
+        }
+        return expr;
+    }
+
+    public Expression parseConstant() {
         var n = this.reader.next();
         return switch (n) {
             case Token.Integer integer -> new Expression.Integer(integer.value());
-            default -> throw new RuntimeException("Invalid base value " + n);
+            case Token.CString str -> new Expression.StringValue(
+                    str.value().replace("\\0", "\0")
+                            .replace("\\n", "\n")
+            );
+            case Token.String str -> new Expression.StringValue(
+                    str.value().replace("\\n", "\n")
+            );
+            case Token.Identifier id -> new Expression.Variable(id.name());
+            default -> throw new RuntimeException("Invalid constant " + n);
         };
     }
 
@@ -88,6 +163,9 @@ public class Parser {
             } catch (Exception ignored) {
 
             }
+        }
+        if(name.name().equals("cstr")) {
+            return new AstType.CString();
         }
         throw new RuntimeException("Invalid type name: " + name.name());
     }

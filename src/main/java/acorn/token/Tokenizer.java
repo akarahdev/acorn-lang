@@ -11,15 +11,19 @@ public class Tokenizer {
 
     public static Tokenizer create(String source) {
         var t = new Tokenizer();
-        t.stringReader = Reader.create(source, String::charAt, String::length);
+        t.stringReader = Reader.create(source + "\n\n\n", String::charAt, String::length);
         return t;
     }
 
     public List<Token> tokenize() {
         while(stringReader.hasNext()) {
-            var token = tokenizeOnce();
-            if(token != null) {
-                this.tokens.add(token);
+            try {
+                var token = tokenizeOnce();
+                if(token != null) {
+                    this.tokens.add(token);
+                }
+            } catch (Exception ignored) {
+                break;
             }
         }
         return this.tokens;
@@ -31,6 +35,19 @@ public class Tokenizer {
         }
 
         this.skipWhitespace();
+
+        if(stringReader.peek() == 'c' && stringReader.peek(1) == '"') {
+            stringReader.next();
+            stringReader.next();
+
+            var sb = new StringBuilder();
+            while(stringReader.peek() != '"') {
+                sb.append(stringReader.next());
+            }
+            stringReader.next();
+
+            return new Token.CString(sb.toString());
+        }
 
         // tokenize identifiers
         if(Character.isJavaIdentifierStart(stringReader.peek())) {
@@ -60,6 +77,17 @@ public class Tokenizer {
             }
         }
 
+        if(stringReader.peek() == '"') {
+            var sb = new StringBuilder();
+            stringReader.next();
+            while(stringReader.peek() != '"') {
+                sb.append(stringReader.next());
+            }
+            stringReader.next();
+
+            return new Token.String(sb.toString());
+        }
+
         // parse misc symbols
         return switch (stringReader.next()) {
             case '{' -> new Token.OpenBrace();
@@ -73,6 +101,8 @@ public class Tokenizer {
             };
             case '*' -> new Token.Star();
             case '/' -> new Token.Slash();
+            case '@' -> new Token.At();
+            case ',' -> new Token.Comma();
             default -> null;
         };
     }

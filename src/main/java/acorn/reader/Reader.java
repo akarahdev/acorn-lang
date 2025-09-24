@@ -31,11 +31,27 @@ public class Reader<T, E> {
     }
 
     public E next() {
-        return indexFunction.apply(value, index++);
+        try {
+            return indexFunction.apply(value, index++);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public E peek() {
-        return indexFunction.apply(value, index);
+        try {
+            return indexFunction.apply(value, index);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public E peek(int ahead) {
+        try {
+            return indexFunction.apply(value, index + ahead);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public E expect(Predicate<E> predicate) {
