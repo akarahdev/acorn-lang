@@ -60,6 +60,8 @@ public class Tokenizer {
                 case "fn" -> new Token.FnKeyword();
                 case "return" -> new Token.ReturnKeyword();
                 case "type" -> new Token.TypeKeyword();
+                case "box" -> new Token.BoxKeyword();
+                case "unbox" -> new Token.UnboxKeyword();
                 default -> new Token.Identifier(sb.toString());
             };
         }

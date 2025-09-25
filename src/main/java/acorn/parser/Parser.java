@@ -124,6 +124,10 @@ public class Parser {
     public Statement parseStatement() {
         return switch (this.reader.peek()) {
             case Token.ReturnKeyword _ -> {
+                if(this.reader.peek(1) instanceof Token.CloseBrace) {
+                    this.reader.next();
+                    yield new Statement.Ret(null);
+                }
                 this.reader.next();
                 yield new Statement.Ret(this.parseExpression());
             }
@@ -139,24 +143,51 @@ public class Parser {
         var expr = parseInvocation();
         while(reader.peek() instanceof Token.Plus) {
             reader.expect(Token.Plus.class);
-            expr = new Expression.Addition(expr, parseInvocation());
+            expr = new Expression.Box(
+                    new Expression.Addition(
+                            new Expression.Unbox(expr),
+                            new Expression.Unbox(parseInvocation())
+                    )
+            );
         }
         return expr;
     }
 
     public Expression parseInvocation() {
-        var expr = parseConstant();
+        var expr = parseBoxing();
         while(reader.peek() instanceof Token.OpenParen) {
             expr = new Expression.Invocation(expr, parseTuple(Parser::parseExpression));
         }
         return expr;
     }
 
+    public Expression parseBoxing() {
+        if(reader.peek() instanceof Token.BoxKeyword) {
+            reader.next();
+            return new Expression.Box(parseParens());
+        }
+        if(reader.peek() instanceof Token.UnboxKeyword) {
+            reader.next();
+            return new Expression.Unbox(parseParens());
+        }
+        return parseParens();
+    }
+
+    public Expression parseParens() {
+        if(reader.peek() instanceof Token.OpenParen) {
+            reader.next();
+            var expr = parseExpression();
+            reader.expect(Token.CloseParen.class);
+            return expr;
+        }
+        return parseConstant();
+    }
+
     public Expression parseConstant() {
         var n = this.reader.next();
         return switch (n) {
-            case Token.Integer integer -> new Expression.Integer(integer.value());
-            case Token.CString str -> new Expression.StringValue(
+            case Token.Integer integer -> new Expression.Box(new Expression.Integer(integer.value()));
+            case Token.CString str -> new Expression.CStringValue(
                     str.value().replace("\\0", "\0")
                             .replace("\\n", "\n")
             );
@@ -170,6 +201,23 @@ public class Parser {
 
     public AstType parseType() {
         var name = this.reader.expect(Token.Identifier.class);
+        if(name.name().equals("void")) {
+            return new AstType.Void();
+        }
+        if(name.name().equals("unsafe::raw")) {
+            this.reader.expect(Token.OpenParen.class);
+            var rt = parseUnboxedType(null);
+            this.reader.expect(Token.CloseParen.class);
+            return rt;
+        } else {
+            return new AstType.Boxed(parseUnboxedType(name));
+        }
+    }
+
+    public AstType parseUnboxedType(Token.Identifier name) {
+        if(name == null) {
+            name = this.reader.expect(Token.Identifier.class);
+        }
         if(name.name().startsWith("i")) {
             var replaced = name.name().replace("i", "");
             try {

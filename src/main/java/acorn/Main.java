@@ -22,14 +22,19 @@ public class Main {
 
         var ctx = GlobalContext.create();
         var module = Module.builder();
+        System.out.println(functions);
+        functions.forEach(x -> x.preprocess(ctx));
         functions.forEach(x -> x.emit(module, ctx));
         module.build().emit(Paths.get("./build/out.ll"));
 
         var p1 = Runtime.getRuntime().exec(new String[] { "clang", "./build/out.ll", "-o", "./build/a.out" });
         p1.getInputStream().transferTo(System.out);
+        p1.getErrorStream().transferTo(System.err);
         p1.waitFor();
+
         var p2 = Runtime.getRuntime().exec(new String[] { "./build/a.out" });
         p2.getInputStream().transferTo(System.out);
+        p2.getErrorStream().transferTo(System.err);
         var returns = p2.waitFor();
         System.out.println("Exited with code " + returns);
     }

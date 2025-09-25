@@ -33,6 +33,14 @@ public interface Token {
 
     }
 
+    record BoxKeyword() implements Token {
+
+    }
+
+    record UnboxKeyword() implements Token {
+
+    }
+
     record RightArrow() implements Token {
 
     }

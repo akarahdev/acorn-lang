@@ -9,7 +9,11 @@ public sealed interface Statement {
     record Ret(Expression expr) implements Statement {
         @Override
         public void compile(CodeGenerator gen) {
-            gen.codeBuilder().ret(expr.compile(gen).typed(Type.integer(32)));
+            if(expr == null) {
+                gen.codeBuilder().ret();
+                return;
+            }
+            gen.codeBuilder().ret(expr.compile(gen).typed(expr.inferType(gen).toType(gen.context())));
         }
     }
 

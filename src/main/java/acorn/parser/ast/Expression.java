@@ -1,7 +1,6 @@
 package acorn.parser.ast;
 
 import acorn.parser.CodeGenerator;
-import llvm4j.module.type.Type;
 import llvm4j.module.value.Constant;
 import llvm4j.module.value.Identifier;
 import llvm4j.module.value.Value;
@@ -9,12 +8,18 @@ import llvm4j.module.value.Value;
 import java.util.List;
 
 public sealed interface Expression {
-    Value compile(CodeGenerator builder);
+    default Value compile(CodeGenerator builder) {
+        builder.codeBuilder().comment("ENTER " + this.toString().replaceAll("\n", "[nl]"));
+        var h = this.compileInner(builder);
+        builder.codeBuilder().comment("EXIT " + this.toString().replaceAll("\n", "[nl]"));
+        return h;
+    }
+    Value compileInner(CodeGenerator builder);
     AstType inferType(CodeGenerator builder);
 
     record Variable(String name) implements Expression {
         @Override
-        public Value compile(CodeGenerator builder) {
+        public Value compileInner(CodeGenerator builder) {
             if(builder.context().functions().containsKey(name)) {
                 return Identifier.global(builder.context().functions().get(name).mangling());
             }
@@ -32,11 +37,21 @@ public sealed interface Expression {
 
     record Invocation(Expression functionPointer, List<Expression> args) implements Expression {
         @Override
-        public Value compile(CodeGenerator builder) {
-            return builder.codeBuilder().call(
-                    functionPointer.compile(builder).typed(functionPointer.inferType(builder).toType(builder.context())),
-                    args.stream().map(x -> x.compile(builder).typed(x.inferType(builder).toType(builder.context()))).toList()
-            );
+        public Value compileInner(CodeGenerator builder) {
+            var ptrType = functionPointer.inferType(builder);
+            var returnType = this.inferType(builder);
+            if(returnType instanceof AstType.Void) {
+                builder.codeBuilder().callVoid(
+                        functionPointer.compile(builder).typed(ptrType.toType(builder.context())),
+                        args.stream().map(x -> x.compile(builder).typed(x.inferType(builder).toType(builder.context()))).toList()
+                );
+                return null;
+            } else {
+                return builder.codeBuilder().callTyped(
+                        functionPointer.compile(builder).typed(ptrType.toType(builder.context())),
+                        args.stream().map(x -> x.compile(builder).typed(x.inferType(builder).toType(builder.context()))).toList()
+                );
+            }
         }
 
         @Override
@@ -47,8 +62,8 @@ public sealed interface Expression {
 
     record Addition(Expression left, Expression right) implements Expression {
         @Override
-        public Value compile(CodeGenerator builder) {
-            return builder.codeBuilder().add(this.inferType(builder).toType(builder.context()), left.compile(builder), right.compile(builder));
+        public Value compileInner(CodeGenerator builder) {
+            return builder.codeBuilder().add(this.inferType(builder).unbox().toType(builder.context()), left.compile(builder), right.compile(builder));
         }
 
         @Override
@@ -60,7 +75,7 @@ public sealed interface Expression {
 
     record Integer(long value) implements Expression {
         @Override
-        public Value compile(CodeGenerator builder) {
+        public Value compileInner(CodeGenerator builder) {
             return Constant.integer(value);
         }
 
@@ -70,20 +85,13 @@ public sealed interface Expression {
         }
     }
 
-    record StringValue(String value) implements Expression {
+    record CStringValue(String value) implements Expression {
         @Override
-        public Value compile(CodeGenerator builder) {
+        public Value compileInner(CodeGenerator builder) {
             var g = Identifier.globalRandom();
             builder.module().withGlobalVariable(
                     g,
                     Constant.c_str(value + "\0")
-            );
-
-            var stringPtr = builder.codeBuilder().call(
-                    Identifier.global("malloc").typed(Type.function(Type.ptr(), List.of(Type.integer(32)))),
-                    List.of(
-                            Constant.integer(value.length() + 1).typed(Type.integer(32))
-                    )
             );
 
             return g;
@@ -92,6 +100,48 @@ public sealed interface Expression {
         @Override
         public AstType inferType(CodeGenerator builder) {
             return new AstType.CString();
+        }
+    }
+
+    record StringValue(String value) implements Expression {
+        @Override
+        public Value compileInner(CodeGenerator builder) {
+            throw new RuntimeException("Not yet implemented");
+        }
+
+        @Override
+        public AstType inferType(CodeGenerator builder) {
+            return new AstType.CString();
+        }
+    }
+
+    record Box(Expression value) implements Expression {
+        @Override
+        public Value compileInner(CodeGenerator builder) {
+            return builder.wrapValueInRefCount(
+                    value.compile(builder).typed(value.inferType(builder).toType(builder.context())),
+                    128
+            );
+        }
+
+        @Override
+        public AstType inferType(CodeGenerator builder) {
+            return new AstType.Boxed(value.inferType(builder));
+        }
+    }
+
+    record Unbox(Expression value) implements Expression {
+        @Override
+        public Value compileInner(CodeGenerator builder) {
+            return builder.loadValueFromRefCount(
+                    value.inferType(builder).unbox().toType(builder.context()),
+                    value.compile(builder)
+            );
+        }
+
+        @Override
+        public AstType inferType(CodeGenerator builder) {
+            return value.inferType(builder).unbox();
         }
     }
 }

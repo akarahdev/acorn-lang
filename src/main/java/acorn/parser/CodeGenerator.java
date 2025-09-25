@@ -7,6 +7,7 @@ import llvm4j.module.code.BasicBlock;
 import llvm4j.module.type.Type;
 import llvm4j.module.value.Constant;
 import llvm4j.module.value.Identifier;
+import llvm4j.module.value.TypeValuePair;
 import llvm4j.module.value.Value;
 
 import java.util.List;
@@ -17,45 +18,72 @@ public record CodeGenerator(
         Function.Builder function,
         BasicBlock.Builder codeBuilder
 ) {
-    public record WrappedStructure(
-            Value wrapperPtr,
-            Value objPtr
-    ) {}
+    public static Type REF_COUNT_WRAPPER = Type.struct(List.of(
+            Type.integer(32),
+            Type.integer(32),
+            Type.ptr()
+    ));
 
-    public WrappedStructure allocateStructure(int dataSize) {
-        var objPtr = this.codeBuilder().call(
-                Identifier.global("malloc").typed(Type.function(Type.ptr(), List.of(Type.integer(32)))),
+    public Value wrapValueInRefCount(TypeValuePair value, int dataSize) {
+        var objPtr = this.codeBuilder().callTyped(
+                Identifier.global("malloc").typed(Type.function(Type.ptr(), List.of(Type.integer(64)))),
                 List.of(
-                        Constant.integer(dataSize).typed(Type.integer(32))
+                        Constant.integer(dataSize).typed(Type.integer(64))
                 )
         );
-        var wrapperPtr = this.codeBuilder().call(
-                Identifier.global("malloc").typed(Type.function(Type.ptr(), List.of(Type.integer(32)))),
-                List.of(
-                        Constant.integer(16).typed(Type.integer(32))
-                )
-        );
-        var wrapperType = Type.struct(List.of(
-                Type.integer(4),
-                Type.integer(4),
-                Type.ptr()
-        ));
         this.codeBuilder.store(
-                Constant.undef().typed(wrapperType),
+                value,
+                objPtr
+        );
+        var wrapperPtr = this.codeBuilder().callTyped(
+                Identifier.global("malloc").typed(Type.function(Type.ptr(), List.of(Type.integer(64)))),
+                List.of(
+                        Constant.integer(128).typed(Type.integer(64))
+                )
+        );
+        this.codeBuilder.store(
+                Constant.undef().typed(REF_COUNT_WRAPPER),
                 wrapperPtr
         );
         this.codeBuilder.store(
                 Constant.integer(1).typed(Type.integer(32)),
-                this.codeBuilder.getElementPtr(wrapperType, wrapperPtr, Constant.integer(0).typed(Type.integer(32)))
+                this.codeBuilder.getElementPtr(
+                        REF_COUNT_WRAPPER,
+                        wrapperPtr,
+                        Constant.integer(0).typed(Type.integer(32)),
+                        Constant.integer(0).typed(Type.integer(32)))
         );
         this.codeBuilder.store(
                 Constant.integer(1).typed(Type.integer(32)),
-                this.codeBuilder.getElementPtr(wrapperType, wrapperPtr, Constant.integer(1).typed(Type.integer(32)))
+                this.codeBuilder.getElementPtr(
+                        REF_COUNT_WRAPPER,
+                        wrapperPtr,
+                        Constant.integer(0).typed(Type.integer(32)),
+                        Constant.integer(1).typed(Type.integer(32)))
         );
         this.codeBuilder.store(
-                wrapperPtr.typed(Type.ptr()),
-                this.codeBuilder.getElementPtr(wrapperType, wrapperPtr, Constant.integer(2).typed(Type.integer(32)))
+                objPtr.typed(Type.ptr()),
+                this.codeBuilder.getElementPtr(
+                        REF_COUNT_WRAPPER,
+                        wrapperPtr,
+                        Constant.integer(0).typed(Type.integer(32)),
+                        Constant.integer(2).typed(Type.integer(32)))
         );
-        return new WrappedStructure(wrapperPtr, objPtr);
+        return wrapperPtr;
+    }
+
+    public Value loadValueFromRefCount(Type expectedType, Value wrapperPtr) {
+        return this.codeBuilder.load(
+                expectedType,
+                this.codeBuilder.load(
+                        Type.ptr(),
+                        this.codeBuilder.getElementPtr(
+                                REF_COUNT_WRAPPER,
+                                wrapperPtr,
+                                Constant.integer(0).typed(Type.integer(32)),
+                                Constant.integer(2).typed(Type.integer(32))
+                        )
+                )
+        );
     }
 }

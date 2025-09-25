@@ -14,7 +14,7 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    implementation("com.github.akarahdev:llvm4j:e286d7ca32")
+    implementation("com.github.akarahdev:llvm4j:ba87f2dca4")
 }
 
 tasks.test {

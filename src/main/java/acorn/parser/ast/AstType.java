@@ -6,13 +6,26 @@ import llvm4j.module.type.Type;
 import java.util.List;
 
 public sealed interface AstType {
+    default AstType unbox() {
+        if(this instanceof Boxed(AstType type)) {
+            return type;
+        }
+        return this;
+    }
+
     Type toType(GlobalContext context);
 
     record Unresolved(String name) implements AstType {
-
         @Override
         public Type toType(GlobalContext context) {
             return context.typeAliases().get(this.name).toType(context);
+        }
+    }
+
+    record Boxed(AstType type) implements AstType {
+        @Override
+        public Type toType(GlobalContext context) {
+            return Type.ptr();
         }
     }
 
@@ -20,6 +33,13 @@ public sealed interface AstType {
         @Override
         public Type toType(GlobalContext context) {
             return Type.integer(bits);
+        }
+    }
+
+    record Void() implements AstType {
+        @Override
+        public Type toType(GlobalContext context) {
+            return Type.voidType();
         }
     }
 

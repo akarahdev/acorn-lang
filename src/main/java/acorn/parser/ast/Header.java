@@ -10,23 +10,29 @@ import llvm4j.module.value.Identifier;
 import java.util.List;
 
 public sealed interface Header {
+    void preprocess(GlobalContext context);
     void emit(Module.Builder builder, GlobalContext context);
 
     record Parameter(String name, AstType type) {}
 
     record TypeAlias(String name, AstType type, List<Annotation> annotations) implements Header {
         @Override
-        public void emit(Module.Builder builder, GlobalContext context) {
+        public void preprocess(GlobalContext context) {
             context.typeAliases().put(
                     name,
                     this.type
             );
         }
+
+        @Override
+        public void emit(Module.Builder builder, GlobalContext context) {
+
+        }
     }
 
     record Function(String name, AstType returnType, List<Parameter> parameters, List<Statement> statements, List<Annotation> annotations) implements Header {
         @Override
-        public void emit(Module.Builder builder, GlobalContext context) {
+        public void preprocess(GlobalContext context) {
             boolean varargs = false;
             String mangling = this.name.replace("::", "__");
 
@@ -39,12 +45,18 @@ public sealed interface Header {
             boolean finalVarargs = varargs;
 
             context.functions().put(this.name, new FunctionRecord(mangling, finalVarargs, this));
+        }
+
+        @Override
+        public void emit(Module.Builder builder, GlobalContext context) {
+            var varargs = context.functions().get(this.name).varargs();
+            var mangling = context.functions().get(this.name).mangling();
 
             builder.withFunction(
                     Identifier.global(mangling),
                     fb -> {
                         fb.withReturnType(this.returnType.toType(context));
-                        if(finalVarargs) {
+                        if(varargs) {
                             fb.withVarargs();
                         }
                         for(var parameter : this.parameters) {
