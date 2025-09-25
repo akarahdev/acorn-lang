@@ -6,13 +6,17 @@ import acorn.token.Tokenizer;
 import llvm4j.module.Module;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.*;
+import java.util.Objects;
 
 public class Main {
-    static void main(String[] args) throws IOException, InterruptedException {
+    static void main(String[] args) throws IOException, InterruptedException, URISyntaxException {
+        var stdlib = loadStdlib();
+
         var sourceFilePath = args[0];
-        var contents = Files.readString(Paths.get(sourceFilePath));
+        var contents = stdlib + "\n" + Files.readString(Paths.get(sourceFilePath));
 
         var tokens = Tokenizer.create(contents).tokenize();
         System.out.println(tokens);
@@ -37,5 +41,18 @@ public class Main {
         p2.getErrorStream().transferTo(System.err);
         var returns = p2.waitFor();
         System.out.println("Exited with code " + returns);
+    }
+
+    static String loadStdlib() throws URISyntaxException, IOException {
+        var sb = new StringBuilder();
+        var files = new String[] {
+                "/std/entrypoint.acorn",
+                "/std/libc.acorn",
+        };
+        for(var file : files) {
+            sb.append(Files.readString(Paths.get(Objects.requireNonNull(Main.class.getResource(file)).toURI())))
+                    .append("\n\n");
+        }
+        return sb.toString();
     }
 }

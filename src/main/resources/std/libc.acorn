@@ -1,0 +1,6 @@
+@mangle_as("malloc")
+fn libc::malloc(size unsafe::raw(i64)) -> unsafe::raw(cstr)
+
+@mangle_as("printf")
+@varargs
+fn libc::printf(print_string unsafe::raw(cstr)) -> unsafe::raw(i32)
