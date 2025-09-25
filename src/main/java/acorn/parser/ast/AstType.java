@@ -64,11 +64,9 @@ public sealed interface AstType {
     record Struct(List<Header.Parameter> parameters) implements AstType {
         @Override
         public Type toType(GlobalContext context) {
-            return Type.struct(List.of(
-                    Type.integer(32),
-                    Type.integer(32),
-                    Type.ptr()
-            ));
+            return Type.struct(
+                    parameters.stream().map(x -> x.type().toType(context)).toList()
+            );
         }
     }
 }

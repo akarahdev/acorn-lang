@@ -74,18 +74,29 @@ public record CodeGenerator(
         return wrapperPtr;
     }
 
-    public Value loadValueFromRefCount(Type expectedType, Value wrapperPtr) {
-        return this.codeBuilder.load(
-                expectedType,
-                this.codeBuilder.load(
-                        Type.ptr(),
-                        this.codeBuilder.getElementPtr(
-                                REF_COUNT_WRAPPER,
-                                wrapperPtr,
-                                Constant.integer(0).typed(Type.integer(32)),
-                                Constant.integer(2).typed(Type.integer(32))
-                        )
+    public Value loadObjPtrFromWrapper(Value wrapperPtr) {
+        this.codeBuilder.comment("Loading ref count ptr from " + wrapperPtr.toString());
+        var o = this.codeBuilder.load(
+                Type.ptr(),
+                this.codeBuilder.getElementPtr(
+                        REF_COUNT_WRAPPER,
+                        wrapperPtr,
+                        Constant.integer(0).typed(Type.integer(32)),
+                        Constant.integer(2).typed(Type.integer(32))
                 )
         );
+        this.codeBuilder.comment("Finishing loading ref count ptr from " + wrapperPtr.toString());
+        return o;
+    }
+
+    public Value loadValueFromRefCount(Type expectedType, Value wrapperPtr) {
+
+        this.codeBuilder.comment("Loading ref count value from " + wrapperPtr.toString());
+        var o = this.codeBuilder.load(
+                expectedType,
+                loadObjPtrFromWrapper(wrapperPtr)
+        );
+        this.codeBuilder.comment("Stopping loading ref count value from " + wrapperPtr.toString());
+        return o;
     }
 }

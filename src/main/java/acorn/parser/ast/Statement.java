@@ -3,11 +3,16 @@ package acorn.parser.ast;
 import acorn.parser.CodeGenerator;
 
 public sealed interface Statement {
-    void compile(CodeGenerator gen);
+    default void compile(CodeGenerator gen) {
+        gen.codeBuilder().comment("ENTER STATEMENT " + this.toString().replace("\n", "[n]"));
+        this.compileInner(gen);
+        gen.codeBuilder().comment("EXIT STATEMENT " + this.toString().replace("\n", "[n]"));
+    }
+    void compileInner(CodeGenerator gen);
 
     record Ret(Expression expr) implements Statement {
         @Override
-        public void compile(CodeGenerator gen) {
+        public void compileInner(CodeGenerator gen) {
             if(expr == null) {
                 gen.codeBuilder().ret();
                 return;
@@ -19,7 +24,7 @@ public sealed interface Statement {
     record StoreValue(Expression path, Expression expr) implements Statement {
 
         @Override
-        public void compile(CodeGenerator gen) {
+        public void compileInner(CodeGenerator gen) {
             if(path instanceof Expression.Variable(String variableName)) {
                 if(!gen.stackMap().hasLocalVariable(variableName)) {
                     gen.stackMap().storeVariable(
@@ -31,14 +36,14 @@ public sealed interface Statement {
             }
             gen.codeBuilder().store(
                     expr.compileValue(gen).typed(expr.inferType(gen).toType(gen.context())),
-                    path.compileInnerPath(gen)
+                    path.compilePath(gen)
             );
         }
     }
 
     record Dropping(Expression expr) implements Statement {
         @Override
-        public void compile(CodeGenerator gen) {
+        public void compileInner(CodeGenerator gen) {
             expr.compileValue(gen);
         }
     }

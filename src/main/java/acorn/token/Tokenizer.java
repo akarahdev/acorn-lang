@@ -62,6 +62,7 @@ public class Tokenizer {
                 case "type" -> new Token.TypeKeyword();
                 case "box" -> new Token.BoxKeyword();
                 case "unbox" -> new Token.UnboxKeyword();
+                case "struct" -> new Token.StructKeyword();
                 default -> new Token.Identifier(sb.toString());
             };
         }
@@ -107,6 +108,7 @@ public class Tokenizer {
             case '@' -> new Token.At();
             case ',' -> new Token.Comma();
             case '=' -> new Token.Equals();
+            case '.' -> new Token.Period();
             default -> null;
         };
     }

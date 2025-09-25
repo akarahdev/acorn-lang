@@ -33,6 +33,10 @@ public interface Token {
 
     }
 
+    record StructKeyword() implements Token {
+
+    }
+
     record BoxKeyword() implements Token {
 
     }
@@ -50,6 +54,10 @@ public interface Token {
     }
 
     record At() implements Token {
+
+    }
+
+    record Period() implements Token {
 
     }
 

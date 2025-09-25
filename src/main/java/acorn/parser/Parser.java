@@ -7,6 +7,7 @@ import acorn.token.Token;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class Parser {
     Reader<List<Token>, Token> reader;
@@ -190,7 +191,17 @@ public class Parser {
             reader.expect(Token.CloseParen.class);
             return expr;
         }
-        return parseConstant();
+        return parseFieldAccess();
+    }
+
+    public Expression parseFieldAccess() {
+        var expr = parseConstant();
+        if(this.reader.peek() instanceof Token.Period) {
+            this.reader.next();
+            var field = this.reader.expect(Token.Identifier.class).name();
+            expr = new Expression.FieldAccess(expr, field);
+        }
+        return expr;
     }
 
     public Expression parseConstant() {
@@ -205,8 +216,26 @@ public class Parser {
                     str.value().replace("\\n", "\n")
             );
             case Token.Identifier id -> new Expression.Variable(id.name());
+            case Token.StructKeyword _ -> parseStructLiteral(this::parseExpression);
             default -> throw new RuntimeException("Invalid constant " + n);
         };
+    }
+
+    public Expression parseStructLiteral(Supplier<Expression> exprObtainer) {
+        this.reader.expect(Token.OpenBrace.class);
+
+        var params = new ArrayList<Expression.StructLiteral.Field>();
+
+        while(!(this.reader.peek() instanceof Token.CloseBrace)) {
+            var name = this.reader.expect(Token.Identifier.class);
+            var type = this.parseType();
+            this.reader.expect(Token.Equals.class);
+            var value = exprObtainer.get();
+            params.add(new Expression.StructLiteral.Field(name.name(), type, value));
+        }
+        this.reader.expect(Token.CloseBrace.class);
+
+        return new Expression.StructLiteral(params);
     }
 
     public AstType parseType() {

@@ -1,6 +1,7 @@
 package acorn.parser.ast;
 
 import acorn.parser.CodeGenerator;
+import llvm4j.module.type.Type;
 import llvm4j.module.value.Constant;
 import llvm4j.module.value.Identifier;
 import llvm4j.module.value.Value;
@@ -12,13 +13,40 @@ public sealed interface Expression {
         builder.codeBuilder().comment("ENTER " + this.toString().replaceAll("\n", "[nl]"));
         var h = this.compileInnerValue(builder);
         builder.codeBuilder().comment("EXIT " + this.toString().replaceAll("\n", "[nl]"));
+        builder.codeBuilder().comment(" -- compiled into " + h);
         return h;
     }
+
     Value compileInnerValue(CodeGenerator builder);
+
+    default Value compilePath(CodeGenerator builder) {
+        builder.codeBuilder().comment("ENTER PATH " + this.toString().replaceAll("\n", "[nl]"));
+        var ip = compileInnerPath(builder);
+        builder.codeBuilder().comment("EXIT PATH " + this.toString().replaceAll("\n", "[nl]"));
+        builder.codeBuilder().comment(" -- compiled into " + ip);
+        return ip;
+    }
+
     default Value compileInnerPath(CodeGenerator builder) {
+        if(this instanceof Box(Expression value)) {
+            throw new RuntimeException("Cannot use boxed value as a pointer path");
+        }
+        if(this instanceof Unbox(Expression value)) {
+            return builder.loadObjPtrFromWrapper(value.compilePath(builder));
+        }
         throw new RuntimeException(this + " can not be used as a pointer path");
     }
     AstType inferType(CodeGenerator builder);
+
+    default Expression debox() {
+        if(this instanceof Box(Expression value)) {
+            return value.debox();
+        }
+        if(this instanceof Unbox(Expression value)) {
+            return value.debox();
+        }
+        return this;
+    }
 
     record Variable(String name) implements Expression {
         @Override
@@ -29,7 +57,7 @@ public sealed interface Expression {
             if(builder.stackMap().hasLocalVariable(name)) {
                 return builder.codeBuilder().load(
                         builder.stackMap().getLocalVariable(name).type().toType(builder.context()),
-                        this.compileInnerPath(builder)
+                        this.compilePath(builder)
                 );
             }
             throw new RuntimeException("Unable to resolve variable " + name);
@@ -165,6 +193,84 @@ public sealed interface Expression {
         @Override
         public AstType inferType(CodeGenerator builder) {
             return value.inferType(builder).unbox();
+        }
+    }
+
+    record FieldAccess(Expression baseStructPtr, String identifier) implements Expression {
+        @Override
+        public Value compileInnerValue(CodeGenerator builder) {
+            return builder.codeBuilder().load(
+                    this.inferType(builder).toType(builder.context()),
+                    this.compilePath(builder)
+            );
+        }
+
+        @Override
+        public Value compileInnerPath(CodeGenerator builder) {
+            return builder.codeBuilder().getElementPtr(
+                    baseStructPtr.inferType(builder).toType(builder.context()),
+                    this.baseStructPtr.compilePath(builder),
+                    Constant.integer(0).typed(Type.integer(32)),
+                    Constant.integer(ptrOffset(builder)).typed(Type.integer(32))
+            );
+        }
+
+        @Override
+        public AstType inferType(CodeGenerator builder) {
+            var baseType = baseStructPtr.inferType(builder);
+            if(baseType.unbox() instanceof AstType.Struct(List<Header.Parameter> parameters)) {
+                for(var param : parameters) {
+                    if(param.name().equals(identifier)) {
+                        return param.type();
+                    }
+                }
+                throw new RuntimeException("Type " + baseType + " does not have field " + identifier);
+            }
+            throw new RuntimeException("Type " + baseType + " does support access on field " + identifier);
+        }
+
+        public int ptrOffset(CodeGenerator builder) {
+            var baseType = baseStructPtr.inferType(builder);
+            if(baseType.unbox() instanceof AstType.Struct(List<Header.Parameter> parameters)) {
+                int o = 0;
+                for(var param : parameters) {
+                    if(param.name().equals(identifier)) {
+                        return o;
+                    }
+                    o += 1;
+                }
+                throw new RuntimeException("Type " + baseType + " does not have field " + identifier);
+            }
+            throw new RuntimeException("Type " + baseType + " does support access on field " + identifier);
+        }
+    }
+
+    record StructLiteral(List<StructLiteral.Field> fields) implements Expression {
+        public record Field(String name, AstType type, Expression value) {}
+
+        @Override
+        public Value compileInnerValue(CodeGenerator builder) {
+            var llvmStructType = this.inferType(builder).toType(builder.context());
+            Value structValue = Constant.undef();
+            for(int i = 0; i < fields.size(); i++) {
+                var fieldValue = fields.get(i).value.compileValue(builder);
+                var fieldType = fields.get(i).type.toType(builder.context());
+                structValue = builder.codeBuilder().insertValue(
+                        structValue.typed(llvmStructType),
+                        fieldValue.typed(fieldType),
+                        i
+                );
+            }
+            return structValue;
+        }
+
+        @Override
+        public AstType inferType(CodeGenerator builder) {
+            return new AstType.Struct(
+                    this.fields.stream()
+                            .map(x -> new Header.Parameter(x.name(), x.type()))
+                            .toList()
+            );
         }
     }
 }
