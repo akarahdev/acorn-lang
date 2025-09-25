@@ -1,6 +1,7 @@
 package acorn.parser;
 
 import acorn.parser.ctx.GlobalContext;
+import acorn.parser.ctx.StackMap;
 import llvm4j.module.Function;
 import llvm4j.module.Module;
 import llvm4j.module.code.BasicBlock;
@@ -16,7 +17,8 @@ public record CodeGenerator(
         GlobalContext context,
         Module.Builder module,
         Function.Builder function,
-        BasicBlock.Builder codeBuilder
+        BasicBlock.Builder codeBuilder,
+        StackMap stackMap
 ) {
     public static Type REF_COUNT_WRAPPER = Type.struct(List.of(
             Type.integer(32),

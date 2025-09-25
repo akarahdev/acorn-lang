@@ -115,10 +115,20 @@ public class Parser {
         this.reader.expect(Token.OpenBrace.class);
         var stmts = new ArrayList<Statement>();
         while(!(this.reader.peek() instanceof Token.CloseBrace)) {
-            stmts.add(this.parseStatement());
+            stmts.add(this.parseStorage());
         }
         this.reader.expect(Token.CloseBrace.class);
         return stmts;
+    }
+
+    public Statement parseStorage() {
+        var base = this.parseStatement();
+        if(base instanceof Statement.Dropping(Expression expr) && this.reader.peek() instanceof Token.Equals) {
+            this.reader.next();
+            var resolve = this.parseExpression();
+            return new Statement.StoreValue(expr, resolve);
+        }
+        return base;
     }
 
     public Statement parseStatement() {
@@ -200,18 +210,15 @@ public class Parser {
     }
 
     public AstType parseType() {
+        if(this.reader.peek() instanceof Token.UnboxKeyword) {
+            this.reader.next();
+            return parseUnboxedType(null);
+        }
         var name = this.reader.expect(Token.Identifier.class);
         if(name.name().equals("void")) {
             return new AstType.Void();
         }
-        if(name.name().equals("unsafe::raw")) {
-            this.reader.expect(Token.OpenParen.class);
-            var rt = parseUnboxedType(null);
-            this.reader.expect(Token.CloseParen.class);
-            return rt;
-        } else {
-            return new AstType.Boxed(parseUnboxedType(name));
-        }
+        return new AstType.Boxed(parseUnboxedType(name));
     }
 
     public AstType parseUnboxedType(Token.Identifier name) {
@@ -227,8 +234,8 @@ public class Parser {
 
             }
         }
-        if(name.name().equals("cstr")) {
-            return new AstType.CString();
+        if(name.name().equals("libc::ptr")) {
+            return new AstType.LibCPointer();
         }
         return new AstType.Unresolved(name.name());
     }

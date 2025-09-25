@@ -43,7 +43,7 @@ public sealed interface AstType {
         }
     }
 
-    record CString() implements AstType {
+    record LibCPointer() implements AstType {
         @Override
         public Type toType(GlobalContext context) {
             return Type.ptr();

@@ -3,10 +3,12 @@ package acorn.parser.ast;
 import acorn.parser.CodeGenerator;
 import acorn.parser.ctx.FunctionRecord;
 import acorn.parser.ctx.GlobalContext;
+import acorn.parser.ctx.StackMap;
 import acorn.parser.ctx.StructRecord;
 import llvm4j.module.Module;
 import llvm4j.module.value.Identifier;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public sealed interface Header {
@@ -64,10 +66,23 @@ public sealed interface Header {
                         }
                         if(statements != null) {
                             fb.withCode(bb -> {
-                                var cg = new CodeGenerator(context, builder, fb, bb);
+                                var sm = new StackMap(new ArrayList<>());
+                                var cg = new CodeGenerator(context, builder, fb, bb, sm);
+
+                                sm.pushFrame();
+
+                                for(var parameter : this.parameters) {
+                                    var paramSlot = bb.alloca(parameter.type().toType(context));
+                                    var paramValue = Identifier.local(parameter.name());
+                                    bb.store(paramValue.typed(parameter.type().toType(context)), paramSlot);
+                                    sm.storeVariable(parameter.name(), paramSlot, parameter.type());
+                                }
+                                sm.pushFrame();
                                 for(var statement : this.statements) {
                                     statement.compile(cg);
                                 }
+                                sm.popFrame();
+                                sm.popFrame();
                                 return bb;
                             });
                         }

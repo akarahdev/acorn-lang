@@ -1,7 +1,6 @@
 package acorn.parser.ast;
 
 import acorn.parser.CodeGenerator;
-import llvm4j.module.type.Type;
 
 public sealed interface Statement {
     void compile(CodeGenerator gen);
@@ -13,14 +12,34 @@ public sealed interface Statement {
                 gen.codeBuilder().ret();
                 return;
             }
-            gen.codeBuilder().ret(expr.compile(gen).typed(expr.inferType(gen).toType(gen.context())));
+            gen.codeBuilder().ret(expr.compileValue(gen).typed(expr.inferType(gen).toType(gen.context())));
+        }
+    }
+
+    record StoreValue(Expression path, Expression expr) implements Statement {
+
+        @Override
+        public void compile(CodeGenerator gen) {
+            if(path instanceof Expression.Variable(String variableName)) {
+                if(!gen.stackMap().hasLocalVariable(variableName)) {
+                    gen.stackMap().storeVariable(
+                            variableName,
+                            gen.codeBuilder().alloca(expr.inferType(gen).toType(gen.context())),
+                            expr.inferType(gen)
+                    );
+                }
+            }
+            gen.codeBuilder().store(
+                    expr.compileValue(gen).typed(expr.inferType(gen).toType(gen.context())),
+                    path.compileInnerPath(gen)
+            );
         }
     }
 
     record Dropping(Expression expr) implements Statement {
         @Override
         public void compile(CodeGenerator gen) {
-            expr.compile(gen);
+            expr.compileValue(gen);
         }
     }
 }

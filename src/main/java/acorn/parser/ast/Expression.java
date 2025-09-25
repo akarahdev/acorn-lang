@@ -8,22 +8,42 @@ import llvm4j.module.value.Value;
 import java.util.List;
 
 public sealed interface Expression {
-    default Value compile(CodeGenerator builder) {
+    default Value compileValue(CodeGenerator builder) {
         builder.codeBuilder().comment("ENTER " + this.toString().replaceAll("\n", "[nl]"));
-        var h = this.compileInner(builder);
+        var h = this.compileInnerValue(builder);
         builder.codeBuilder().comment("EXIT " + this.toString().replaceAll("\n", "[nl]"));
         return h;
     }
-    Value compileInner(CodeGenerator builder);
+    Value compileInnerValue(CodeGenerator builder);
+    default Value compileInnerPath(CodeGenerator builder) {
+        throw new RuntimeException(this + " can not be used as a pointer path");
+    }
     AstType inferType(CodeGenerator builder);
 
     record Variable(String name) implements Expression {
         @Override
-        public Value compileInner(CodeGenerator builder) {
+        public Value compileInnerValue(CodeGenerator builder) {
             if(builder.context().functions().containsKey(name)) {
                 return Identifier.global(builder.context().functions().get(name).mangling());
             }
+            if(builder.stackMap().hasLocalVariable(name)) {
+                return builder.codeBuilder().load(
+                        builder.stackMap().getLocalVariable(name).type().toType(builder.context()),
+                        this.compileInnerPath(builder)
+                );
+            }
             throw new RuntimeException("Unable to resolve variable " + name);
+        }
+
+        @Override
+        public Value compileInnerPath(CodeGenerator builder) {
+            if(builder.context().functions().containsKey(name)) {
+                return Identifier.global(builder.context().functions().get(name).mangling());
+            }
+            if(builder.stackMap().hasLocalVariable(name)) {
+                return builder.stackMap().getLocalVariable(name).stackSlot();
+            }
+            throw new RuntimeException("Unable to resolve path of variable " + name);
         }
 
         @Override
@@ -31,25 +51,28 @@ public sealed interface Expression {
             if(builder.context().functions().containsKey(name)) {
                 return builder.context().functions().get(name).ptrType();
             }
+            if(builder.stackMap().hasLocalVariable(name)) {
+                return builder.stackMap().getLocalVariable(name).type();
+            }
             throw new RuntimeException("Unable to infer type of variable " + name);
         }
     }
 
     record Invocation(Expression functionPointer, List<Expression> args) implements Expression {
         @Override
-        public Value compileInner(CodeGenerator builder) {
+        public Value compileInnerValue(CodeGenerator builder) {
             var ptrType = functionPointer.inferType(builder);
             var returnType = this.inferType(builder);
             if(returnType instanceof AstType.Void) {
                 builder.codeBuilder().callVoid(
-                        functionPointer.compile(builder).typed(ptrType.toType(builder.context())),
-                        args.stream().map(x -> x.compile(builder).typed(x.inferType(builder).toType(builder.context()))).toList()
+                        functionPointer.compileValue(builder).typed(ptrType.toType(builder.context())),
+                        args.stream().map(x -> x.compileValue(builder).typed(x.inferType(builder).toType(builder.context()))).toList()
                 );
                 return null;
             } else {
                 return builder.codeBuilder().callTyped(
-                        functionPointer.compile(builder).typed(ptrType.toType(builder.context())),
-                        args.stream().map(x -> x.compile(builder).typed(x.inferType(builder).toType(builder.context()))).toList()
+                        functionPointer.compileValue(builder).typed(ptrType.toType(builder.context())),
+                        args.stream().map(x -> x.compileValue(builder).typed(x.inferType(builder).toType(builder.context()))).toList()
                 );
             }
         }
@@ -62,8 +85,9 @@ public sealed interface Expression {
 
     record Addition(Expression left, Expression right) implements Expression {
         @Override
-        public Value compileInner(CodeGenerator builder) {
-            return builder.codeBuilder().add(this.inferType(builder).unbox().toType(builder.context()), left.compile(builder), right.compile(builder));
+        public Value compileInnerValue(CodeGenerator builder) {
+            var exprType = this.inferType(builder).unbox().toType(builder.context());
+            return builder.codeBuilder().add(exprType, left.compileValue(builder), right.compileValue(builder));
         }
 
         @Override
@@ -75,7 +99,7 @@ public sealed interface Expression {
 
     record Integer(long value) implements Expression {
         @Override
-        public Value compileInner(CodeGenerator builder) {
+        public Value compileInnerValue(CodeGenerator builder) {
             return Constant.integer(value);
         }
 
@@ -87,39 +111,38 @@ public sealed interface Expression {
 
     record CStringValue(String value) implements Expression {
         @Override
-        public Value compileInner(CodeGenerator builder) {
+        public Value compileInnerValue(CodeGenerator builder) {
             var g = Identifier.globalRandom();
             builder.module().withGlobalVariable(
                     g,
                     Constant.c_str(value + "\0")
             );
-
             return g;
         }
 
         @Override
         public AstType inferType(CodeGenerator builder) {
-            return new AstType.CString();
+            return new AstType.LibCPointer();
         }
     }
 
     record StringValue(String value) implements Expression {
         @Override
-        public Value compileInner(CodeGenerator builder) {
+        public Value compileInnerValue(CodeGenerator builder) {
             throw new RuntimeException("Not yet implemented");
         }
 
         @Override
         public AstType inferType(CodeGenerator builder) {
-            return new AstType.CString();
+            return new AstType.LibCPointer();
         }
     }
 
     record Box(Expression value) implements Expression {
         @Override
-        public Value compileInner(CodeGenerator builder) {
+        public Value compileInnerValue(CodeGenerator builder) {
             return builder.wrapValueInRefCount(
-                    value.compile(builder).typed(value.inferType(builder).toType(builder.context())),
+                    value.compileValue(builder).typed(value.inferType(builder).toType(builder.context())),
                     128
             );
         }
@@ -132,10 +155,10 @@ public sealed interface Expression {
 
     record Unbox(Expression value) implements Expression {
         @Override
-        public Value compileInner(CodeGenerator builder) {
+        public Value compileInnerValue(CodeGenerator builder) {
             return builder.loadValueFromRefCount(
                     value.inferType(builder).unbox().toType(builder.context()),
-                    value.compile(builder)
+                    value.compileValue(builder)
             );
         }
 
