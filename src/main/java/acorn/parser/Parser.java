@@ -235,7 +235,7 @@ public class Parser {
         }
         this.reader.expect(Token.CloseBrace.class);
 
-        return new Expression.StructLiteral(params);
+        return new Expression.Box(new Expression.StructLiteral(params));
     }
 
     public AstType parseType() {

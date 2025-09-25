@@ -208,8 +208,13 @@ public sealed interface Expression {
         @Override
         public Value compileInnerPath(CodeGenerator builder) {
             return builder.codeBuilder().getElementPtr(
-                    baseStructPtr.inferType(builder).toType(builder.context()),
-                    this.baseStructPtr.compilePath(builder),
+                    baseStructPtr.inferType(builder).unbox().toType(builder.context()),
+                    builder.loadObjPtrFromWrapper(
+                            builder.codeBuilder().load(
+                                    Type.ptr(),
+                                    baseStructPtr.compilePath(builder)
+                            )
+                    ),
                     Constant.integer(0).typed(Type.integer(32)),
                     Constant.integer(ptrOffset(builder)).typed(Type.integer(32))
             );
