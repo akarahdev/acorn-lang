@@ -114,7 +114,7 @@ public sealed interface Expression {
     record Addition(Expression left, Expression right) implements Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
-            var exprType = this.inferType(builder).unbox().toType(builder.context());
+            var exprType = this.inferType(builder).unbox(builder.context()).toType(builder.context());
             return builder.codeBuilder().add(exprType, left.compileValue(builder), right.compileValue(builder));
         }
 
@@ -185,14 +185,14 @@ public sealed interface Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
             return builder.loadValueFromRefCount(
-                    value.inferType(builder).unbox().toType(builder.context()),
+                    value.inferType(builder).unbox(builder.context()).toType(builder.context()),
                     value.compileValue(builder)
             );
         }
 
         @Override
         public AstType inferType(CodeGenerator builder) {
-            return value.inferType(builder).unbox();
+            return value.inferType(builder).unbox(builder.context());
         }
     }
 
@@ -208,7 +208,7 @@ public sealed interface Expression {
         @Override
         public Value compileInnerPath(CodeGenerator builder) {
             return builder.codeBuilder().getElementPtr(
-                    baseStructPtr.inferType(builder).unbox().toType(builder.context()),
+                    baseStructPtr.inferType(builder).unbox(builder.context()).toType(builder.context()),
                     builder.loadObjPtrFromWrapper(
                             builder.codeBuilder().load(
                                     Type.ptr(),
@@ -223,7 +223,7 @@ public sealed interface Expression {
         @Override
         public AstType inferType(CodeGenerator builder) {
             var baseType = baseStructPtr.inferType(builder);
-            if(baseType.unbox() instanceof AstType.Struct(List<Header.Parameter> parameters)) {
+            if(baseType.unbox(builder.context()) instanceof AstType.Struct(List<Header.Parameter> parameters)) {
                 for(var param : parameters) {
                     if(param.name().equals(identifier)) {
                         return param.type();
@@ -231,12 +231,12 @@ public sealed interface Expression {
                 }
                 throw new RuntimeException("Type " + baseType + " does not have field " + identifier);
             }
-            throw new RuntimeException("Type " + baseType + " does support access on field " + identifier);
+            throw new RuntimeException("Type " + baseType + " does not support access on field " + identifier);
         }
 
         public int ptrOffset(CodeGenerator builder) {
             var baseType = baseStructPtr.inferType(builder);
-            if(baseType.unbox() instanceof AstType.Struct(List<Header.Parameter> parameters)) {
+            if(baseType.unbox(builder.context()) instanceof AstType.Struct(List<Header.Parameter> parameters)) {
                 int o = 0;
                 for(var param : parameters) {
                     if(param.name().equals(identifier)) {
@@ -263,7 +263,7 @@ public sealed interface Expression {
         @Override
         public Value compileInnerPath(CodeGenerator builder) {
             var type = baseArrayStackPtr.inferType(builder);
-            if(type.unbox() instanceof AstType.Array(AstType elementType)) {
+            if(type.unbox(builder.context()) instanceof AstType.Array(AstType elementType)) {
 
                 var loadedFromOriginal = builder.codeBuilder().load(
                         Type.ptr(),
@@ -271,11 +271,11 @@ public sealed interface Expression {
                 );
                 var objPtrFromWrapper = builder.loadObjPtrFromWrapper(loadedFromOriginal);
                 var objectAsValue = builder.codeBuilder().load(
-                        baseArrayStackPtr.inferType(builder).unbox().toType(builder.context()),
+                        baseArrayStackPtr.inferType(builder).unbox(builder.context()).toType(builder.context()),
                         objPtrFromWrapper
                 );
                 var arrayPtrFromObjectValue = builder.codeBuilder().extractValue(
-                        objectAsValue.typed(baseArrayStackPtr.inferType(builder).unbox().toType(builder.context())),
+                        objectAsValue.typed(baseArrayStackPtr.inferType(builder).unbox(builder.context()).toType(builder.context())),
                         1
                 );
                 return builder.ptrToArrayElement(
@@ -290,7 +290,7 @@ public sealed interface Expression {
         @Override
         public AstType inferType(CodeGenerator builder) {
             var baseType = baseArrayStackPtr.inferType(builder);
-            if(baseType.unbox() instanceof AstType.Array(AstType element)) {
+            if(baseType.unbox(builder.context()) instanceof AstType.Array(AstType element)) {
                 return element;
             }
             throw new RuntimeException("Type " + baseType + " doesn't support subscripting");

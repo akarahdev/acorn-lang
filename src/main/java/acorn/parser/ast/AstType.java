@@ -6,9 +6,16 @@ import llvm4j.module.type.Type;
 import java.util.List;
 
 public sealed interface AstType {
-    default AstType unbox() {
+    default AstType unbox(GlobalContext context) {
         if(this instanceof Boxed(AstType type)) {
-            return type;
+            return type.unbox(context);
+        }
+        if(this instanceof Unresolved(String name)) {
+            if(context.typeAliases().containsKey(name)) {
+                return context.typeAliases().get(name).unbox(context);
+            } else {
+                throw new RuntimeException(name + " is not a valid type");
+            }
         }
         return this;
     }

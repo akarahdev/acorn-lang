@@ -195,21 +195,19 @@ public class Parser {
     }
 
     public Expression parseFieldAccess() {
-        var expr = parseSubscript();
-        if(this.reader.peek() instanceof Token.Period) {
-            this.reader.next();
-            var field = this.reader.expect(Token.Identifier.class).name();
-            expr = new Expression.FieldAccess(expr, field);
-        }
-        return expr;
-    }
-
-    public Expression parseSubscript() {
         var expr = parseConstant();
-        if(this.reader.peek() instanceof Token.OpenBracket) {
-            this.reader.next();
-            expr = new Expression.Subscript(expr, new Expression.Unbox(parseExpression()));
-            this.reader.expect(Token.CloseBracket.class);
+        while(true) {
+            if(this.reader.peek() instanceof Token.Period) {
+                this.reader.next();
+                var field = this.reader.expect(Token.Identifier.class).name();
+                expr = new Expression.FieldAccess(expr, field);
+            } else if(this.reader.peek() instanceof Token.OpenBracket) {
+                this.reader.next();
+                expr = new Expression.Subscript(expr, new Expression.Unbox(parseExpression()));
+                this.reader.expect(Token.CloseBracket.class);
+            } else {
+                break;
+            }
         }
         return expr;
     }
