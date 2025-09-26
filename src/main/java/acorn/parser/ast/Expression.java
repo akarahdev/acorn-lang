@@ -196,33 +196,78 @@ public sealed interface Expression {
         }
     }
 
-    record FieldAccess(Expression baseStructPtr, String identifier) implements Expression {
+    record FieldAccess(Expression baseValuePtr, String identifier) implements Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
-            return builder.codeBuilder().load(
-                    this.inferType(builder).toType(builder.context()),
-                    this.compilePath(builder)
-            );
+            var baseType = baseValuePtr.inferType(builder);
+            if(baseType.unbox(builder.context()) instanceof AstType.Array array && identifier.equals("length")) {
+                var loadedFromOriginal = builder.codeBuilder().load(
+                        Type.ptr(),
+                        baseValuePtr.compilePath(builder)
+                );
+                var objPtrFromWrapper = builder.loadObjPtrFromWrapper(loadedFromOriginal);
+                var objectAsValue = builder.codeBuilder().load(
+                        baseValuePtr.inferType(builder).unbox(builder.context()).toType(builder.context()),
+                        objPtrFromWrapper
+                );
+                return builder.wrapValueInRefCount(
+                        builder.codeBuilder().extractValue(
+                                objectAsValue.typed(baseValuePtr.inferType(builder).unbox(builder.context()).toType(builder.context())),
+                                0
+                        ).typed(Type.integer(64)),
+                        8
+                );
+            }
+            if(baseType.unbox(builder.context()) instanceof AstType.Struct struct) {
+                return builder.codeBuilder().load(
+                        this.inferType(builder).toType(builder.context()),
+                        this.compilePath(builder)
+                );
+            }
+            throw new RuntimeException("Type " + baseType + " does not have field " + identifier);
         }
 
         @Override
         public Value compileInnerPath(CodeGenerator builder) {
-            return builder.codeBuilder().getElementPtr(
-                    baseStructPtr.inferType(builder).unbox(builder.context()).toType(builder.context()),
-                    builder.loadObjPtrFromWrapper(
-                            builder.codeBuilder().load(
-                                    Type.ptr(),
-                                    baseStructPtr.compilePath(builder)
-                            )
-                    ),
-                    Constant.integer(0).typed(Type.integer(32)),
-                    Constant.integer(ptrOffset(builder)).typed(Type.integer(32))
-            );
+            var baseType = baseValuePtr.inferType(builder);
+            if(baseType.unbox(builder.context()) instanceof AstType.Array) {
+                var loadedFromOriginal = builder.codeBuilder().load(
+                        Type.ptr(),
+                        baseValuePtr.compilePath(builder)
+                );
+                var objPtrFromWrapper = builder.loadObjPtrFromWrapper(loadedFromOriginal);
+                var objectAsValue = builder.codeBuilder().load(
+                        baseValuePtr.inferType(builder).unbox(builder.context()).toType(builder.context()),
+                        objPtrFromWrapper
+                );
+                return builder.codeBuilder().extractValue(
+                        objectAsValue.typed(baseValuePtr.inferType(builder).unbox(builder.context()).toType(builder.context())),
+                        0
+                );
+            }
+            if(baseType.unbox(builder.context()) instanceof AstType.Struct struct) {
+                return builder.codeBuilder().getElementPtr(
+                        struct.toType(builder.context()),
+                        builder.loadObjPtrFromWrapper(
+                                builder.codeBuilder().load(
+                                        Type.ptr(),
+                                        baseValuePtr.compilePath(builder)
+                                )
+                        ),
+                        Constant.integer(0).typed(Type.integer(32)),
+                        Constant.integer(ptrOffset(builder)).typed(Type.integer(32))
+                );
+            }
+            throw new RuntimeException("Type " + baseType + " does not have field " + identifier);
         }
 
         @Override
         public AstType inferType(CodeGenerator builder) {
-            var baseType = baseStructPtr.inferType(builder);
+            var baseType = baseValuePtr.inferType(builder);
+
+            if(baseType.unbox(builder.context()) instanceof AstType.Array array && identifier.equals("length")) {
+                return new AstType.Boxed(new AstType.Integer(64));
+            }
             if(baseType.unbox(builder.context()) instanceof AstType.Struct(List<Header.Parameter> parameters)) {
                 for(var param : parameters) {
                     if(param.name().equals(identifier)) {
@@ -235,7 +280,7 @@ public sealed interface Expression {
         }
 
         public int ptrOffset(CodeGenerator builder) {
-            var baseType = baseStructPtr.inferType(builder);
+            var baseType = baseValuePtr.inferType(builder);
             if(baseType.unbox(builder.context()) instanceof AstType.Struct(List<Header.Parameter> parameters)) {
                 int o = 0;
                 for(var param : parameters) {
