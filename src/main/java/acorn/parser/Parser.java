@@ -232,6 +232,9 @@ public class Parser {
             this.reader.expect(Token.Equals.class);
             var value = exprObtainer.get();
             params.add(new Expression.StructLiteral.Field(name.name(), type, value));
+            if(!(this.reader.peek() instanceof Token.CloseBrace)) {
+                this.reader.expect(Token.Comma.class);
+            }
         }
         this.reader.expect(Token.CloseBrace.class);
 
@@ -239,6 +242,19 @@ public class Parser {
     }
 
     public AstType parseType() {
+        if(this.reader.peek() instanceof Token.OpenBrace) {
+            var params = new ArrayList<Header.Parameter>();
+            this.reader.expect(Token.OpenBrace.class);
+            while(!(this.reader.peek() instanceof Token.CloseBrace)) {
+                params.add(parseParameter());
+                if(!(this.reader.peek() instanceof Token.CloseBrace)) {
+                    this.reader.expect(Token.Comma.class);
+                }
+            }
+            this.reader.expect(Token.CloseBrace.class);
+
+            return new AstType.Boxed(new AstType.Struct(params));
+        }
         if(this.reader.peek() instanceof Token.UnboxKeyword) {
             this.reader.next();
             return parseUnboxedType(null);
