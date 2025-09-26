@@ -195,11 +195,21 @@ public class Parser {
     }
 
     public Expression parseFieldAccess() {
-        var expr = parseConstant();
+        var expr = parseSubscript();
         if(this.reader.peek() instanceof Token.Period) {
             this.reader.next();
             var field = this.reader.expect(Token.Identifier.class).name();
             expr = new Expression.FieldAccess(expr, field);
+        }
+        return expr;
+    }
+
+    public Expression parseSubscript() {
+        var expr = parseConstant();
+        if(this.reader.peek() instanceof Token.OpenBracket) {
+            this.reader.next();
+            expr = new Expression.Subscript(expr, new Expression.Unbox(parseExpression()));
+            this.reader.expect(Token.CloseBracket.class);
         }
         return expr;
     }
@@ -216,14 +226,13 @@ public class Parser {
                     str.value().replace("\\n", "\n")
             );
             case Token.Identifier id -> new Expression.Variable(id.name());
-            case Token.StructKeyword _ -> parseStructLiteral(this::parseExpression);
+            case Token.OpenBrace _ -> parseStructLiteral(this::parseExpression);
+            case Token.OpenBracket _ -> parseArrayLiteral(this::parseExpression);
             default -> throw new RuntimeException("Invalid constant " + n);
         };
     }
 
     public Expression parseStructLiteral(Supplier<Expression> exprObtainer) {
-        this.reader.expect(Token.OpenBrace.class);
-
         var params = new ArrayList<Expression.StructLiteral.Field>();
 
         while(!(this.reader.peek() instanceof Token.CloseBrace)) {
@@ -241,7 +250,28 @@ public class Parser {
         return new Expression.Box(new Expression.StructLiteral(params));
     }
 
+    public Expression parseArrayLiteral(Supplier<Expression> exprObtainer) {
+        var params = new ArrayList<Expression>();
+
+        while(!(this.reader.peek() instanceof Token.CloseBracket)) {
+            var value = exprObtainer.get();
+            params.add(value);
+            if(!(this.reader.peek() instanceof Token.CloseBracket)) {
+                this.reader.expect(Token.Comma.class);
+            }
+        }
+        this.reader.expect(Token.CloseBracket.class);
+
+        return new Expression.Box(new Expression.ArrayLiteral(params));
+    }
+
     public AstType parseType() {
+        if(this.reader.peek() instanceof Token.OpenBracket) {
+            this.reader.next();
+            var innerType = this.parseType();
+            this.reader.expect(Token.CloseBracket.class);
+            return new AstType.Boxed(new AstType.Array(innerType));
+        }
         if(this.reader.peek() instanceof Token.OpenBrace) {
             var params = new ArrayList<Header.Parameter>();
             this.reader.expect(Token.OpenBrace.class);

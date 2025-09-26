@@ -1,5 +1,6 @@
 package acorn.parser;
 
+import acorn.parser.ast.Expression;
 import acorn.parser.ctx.GlobalContext;
 import acorn.parser.ctx.StackMap;
 import llvm4j.module.Function;
@@ -90,7 +91,6 @@ public record CodeGenerator(
     }
 
     public Value loadValueFromRefCount(Type expectedType, Value wrapperPtr) {
-
         this.codeBuilder.comment("Loading ref count value from " + wrapperPtr.toString());
         var o = this.codeBuilder.load(
                 expectedType,
@@ -98,5 +98,14 @@ public record CodeGenerator(
         );
         this.codeBuilder.comment("Stopping loading ref count value from " + wrapperPtr.toString());
         return o;
+    }
+
+    public Value ptrToArrayElement(Type elementType, Value arrayPtr, Expression offset) {
+        return this.codeBuilder.getElementPtr(
+                Type.array(0, elementType),
+                arrayPtr,
+                Constant.integer(0).typed(Type.integer(32)),
+                offset.compileValue(this).typed(offset.inferType(this).toType(this.context))
+        );
     }
 }

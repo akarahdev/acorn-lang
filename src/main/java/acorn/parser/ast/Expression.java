@@ -250,6 +250,53 @@ public sealed interface Expression {
         }
     }
 
+
+    record Subscript(Expression baseArrayStackPtr, Expression subValue) implements Expression {
+        @Override
+        public Value compileInnerValue(CodeGenerator builder) {
+            return builder.codeBuilder().load(
+                    this.inferType(builder).toType(builder.context()),
+                    this.compilePath(builder)
+            );
+        }
+
+        @Override
+        public Value compileInnerPath(CodeGenerator builder) {
+            var type = baseArrayStackPtr.inferType(builder);
+            if(type.unbox() instanceof AstType.Array(AstType elementType)) {
+
+                var loadedFromOriginal = builder.codeBuilder().load(
+                        Type.ptr(),
+                        baseArrayStackPtr.compilePath(builder)
+                );
+                var objPtrFromWrapper = builder.loadObjPtrFromWrapper(loadedFromOriginal);
+                var objectAsValue = builder.codeBuilder().load(
+                        baseArrayStackPtr.inferType(builder).unbox().toType(builder.context()),
+                        objPtrFromWrapper
+                );
+                var arrayPtrFromObjectValue = builder.codeBuilder().extractValue(
+                        objectAsValue.typed(baseArrayStackPtr.inferType(builder).unbox().toType(builder.context())),
+                        1
+                );
+                return builder.ptrToArrayElement(
+                        elementType.toType(builder.context()),
+                        arrayPtrFromObjectValue,
+                        subValue
+                );
+            }
+            throw new RuntimeException(this + " does not support subscripting");
+        }
+
+        @Override
+        public AstType inferType(CodeGenerator builder) {
+            var baseType = baseArrayStackPtr.inferType(builder);
+            if(baseType.unbox() instanceof AstType.Array(AstType element)) {
+                return element;
+            }
+            throw new RuntimeException("Type " + baseType + " doesn't support subscripting");
+        }
+    }
+
     record StructLiteral(List<StructLiteral.Field> fields) implements Expression {
         public record Field(String name, AstType type, Expression value) {}
 
@@ -276,6 +323,52 @@ public sealed interface Expression {
                             .map(x -> new Header.Parameter(x.name(), x.type()))
                             .toList()
             );
+        }
+    }
+
+    record ArrayLiteral(List<Expression> fields) implements Expression {
+        @Override
+        public Value compileInnerValue(CodeGenerator builder) {
+            var llvmArrayType = this.inferType(builder).toType(builder.context());
+            var llvmElementType = this.inferElementType(builder).toType(builder.context());
+            var arrayObjectPtr = builder.codeBuilder().callTyped(
+                    Identifier.global("malloc").typed(Type.function(Type.ptr(), List.of(Type.integer(64)))),
+                    List.of(
+                            Constant.integer(fields.size() * 8L).typed(Type.integer(64))
+                    )
+            );
+
+            int i = 0;
+            for(var field : fields) {
+                builder.codeBuilder().store(
+                        field.compileValue(builder).typed(llvmElementType),
+                        builder.ptrToArrayElement(llvmElementType, arrayObjectPtr, new Integer(i))
+                );
+                i++;
+            }
+
+            return builder.codeBuilder().insertValue(
+                    builder.codeBuilder().insertValue(
+                            Constant.undef().typed(llvmArrayType),
+                            Constant.integer(fields.size()).typed(Type.integer(64)),
+                            0
+                    ).typed(llvmArrayType),
+                    arrayObjectPtr.typed(Type.ptr()),
+                    1
+            );
+        }
+
+        @Override
+        public AstType inferType(CodeGenerator builder) {
+            return new AstType.Array(this.inferElementType(builder));
+        }
+
+        public AstType inferElementType(CodeGenerator builder) {
+            try {
+                return this.fields.getFirst().inferType(builder);
+            } catch (Exception e) {
+                return new AstType.Any();
+            }
         }
     }
 }

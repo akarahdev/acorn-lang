@@ -25,6 +25,10 @@ public interface Token {
 
     }
 
+    record ArrayKeyword() implements Token {
+
+    }
+
     record TypeKeyword() implements Token {
 
     }
@@ -70,6 +74,14 @@ public interface Token {
     }
 
     record CloseBrace() implements Token {
+
+    }
+
+    record OpenBracket() implements Token {
+
+    }
+
+    record CloseBracket() implements Token {
 
     }
 

@@ -98,6 +98,8 @@ public class Tokenizer {
             case '}' -> new Token.CloseBrace();
             case '(' -> new Token.OpenParen();
             case ')' -> new Token.CloseParen();
+            case '[' -> new Token.OpenBracket();
+            case ']' -> new Token.CloseBracket();
             case '+' -> new Token.Plus();
             case '-' -> switch (stringReader.peek()) {
                 case '>' -> new Token.RightArrow();

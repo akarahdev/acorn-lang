@@ -50,6 +50,13 @@ public sealed interface AstType {
         }
     }
 
+    record Any() implements AstType {
+        @Override
+        public Type toType(GlobalContext context) {
+            return Type.ptr();
+        }
+    }
+
     record Function(AstType returned, List<AstType> parameters, boolean varargs) implements AstType {
         @Override
         public Type toType(GlobalContext context) {
@@ -67,6 +74,16 @@ public sealed interface AstType {
             return Type.struct(
                     parameters.stream().map(x -> x.type().toType(context)).toList()
             );
+        }
+    }
+
+    record Array(AstType param) implements AstType {
+        @Override
+        public Type toType(GlobalContext context) {
+            return Type.struct(List.of(
+                    Type.integer(64),
+                    Type.ptr()
+            ));
         }
     }
 }
