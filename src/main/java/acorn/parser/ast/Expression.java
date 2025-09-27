@@ -1,6 +1,8 @@
 package acorn.parser.ast;
 
 import acorn.parser.CodeGenerator;
+import acorn.token.SpanData;
+import acorn.token.SpannedException;
 import java.util.List;
 import llvm4j.module.type.Type;
 import llvm4j.module.value.Constant;
@@ -8,6 +10,8 @@ import llvm4j.module.value.Identifier;
 import llvm4j.module.value.Value;
 
 public sealed interface Expression {
+    SpanData span();
+
     default Value compileValue(CodeGenerator builder) {
         builder
             .codeBuilder()
@@ -35,15 +39,23 @@ public sealed interface Expression {
     }
 
     default Value compileInnerPath(CodeGenerator builder) {
-        if (this instanceof Box(Expression _)) {
-            throw new RuntimeException(
-                "Cannot use boxed value as a pointer path"
+        if (this instanceof Box(Expression expr)) {
+            throw new SpannedException(
+                expr.span(),
+                new SpannedException.ErrorType.DoesNotSupportPathing(
+                    this.inferType(builder)
+                )
             );
         }
         if (this instanceof Unbox(Expression value)) {
             return builder.loadObjPtrFromWrapper(value.compilePath(builder));
         }
-        throw new RuntimeException(this + " can not be used as a pointer path");
+        throw new SpannedException(
+            this.span(),
+            new SpannedException.ErrorType.DoesNotSupportPathing(
+                this.inferType(builder)
+            )
+        );
     }
 
     AstType inferType(CodeGenerator builder);
@@ -58,7 +70,7 @@ public sealed interface Expression {
         return this;
     }
 
-    record Variable(String name) implements Expression {
+    record Variable(String name, SpanData span) implements Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
             if (builder.context().functions().containsKey(name)) {
@@ -72,13 +84,16 @@ public sealed interface Expression {
                     .load(
                         builder
                             .stackMap()
-                            .getLocalVariable(name)
+                            .getLocalVariable(name, this.span)
                             .type()
                             .toType(builder.context()),
                         this.compilePath(builder)
                     );
             }
-            throw new RuntimeException("Unable to resolve variable " + name);
+            throw new SpannedException(
+                this.span,
+                new SpannedException.ErrorType.VariableDoesNotExist(name)
+            );
         }
 
         @Override
@@ -89,10 +104,14 @@ public sealed interface Expression {
                 );
             }
             if (builder.stackMap().hasLocalVariable(name)) {
-                return builder.stackMap().getLocalVariable(name).stackSlot();
+                return builder
+                    .stackMap()
+                    .getLocalVariable(name, this.span)
+                    .stackSlot();
             }
-            throw new RuntimeException(
-                "Unable to resolve path of variable " + name
+            throw new SpannedException(
+                this.span(),
+                new SpannedException.ErrorType.VariableDoesNotExist(this.name)
             );
         }
 
@@ -102,17 +121,22 @@ public sealed interface Expression {
                 return builder.context().functions().get(name).ptrType();
             }
             if (builder.stackMap().hasLocalVariable(name)) {
-                return builder.stackMap().getLocalVariable(name).type();
+                return builder
+                    .stackMap()
+                    .getLocalVariable(name, this.span)
+                    .type();
             }
-            throw new RuntimeException(
-                "Unable to infer type of variable " + name
+            throw new SpannedException(
+                this.span(),
+                new SpannedException.ErrorType.VariableDoesNotExist(this.name)
             );
         }
     }
 
     record Invocation(
         Expression functionPointer,
-        List<Expression> args
+        List<Expression> args,
+        SpanData span
     ) implements Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
@@ -170,7 +194,8 @@ public sealed interface Expression {
         }
     }
 
-    record Addition(Expression left, Expression right) implements Expression {
+    record Addition(Expression left, Expression right, SpanData span) implements
+        Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
             var exprType = this.inferType(builder)
@@ -192,7 +217,7 @@ public sealed interface Expression {
         }
     }
 
-    record Integer(long value) implements Expression {
+    record Integer(long value, SpanData span) implements Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
             return Constant.integer(value);
@@ -200,11 +225,11 @@ public sealed interface Expression {
 
         @Override
         public AstType inferType(CodeGenerator builder) {
-            return new AstType.Integer(32);
+            return new AstType.Integer(32, span);
         }
     }
 
-    record CStringValue(String value) implements Expression {
+    record CStringValue(String value, SpanData span) implements Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
             var g = Identifier.globalRandom();
@@ -216,11 +241,11 @@ public sealed interface Expression {
 
         @Override
         public AstType inferType(CodeGenerator builder) {
-            return new AstType.LibCPointer();
+            return new AstType.LibCPointer(span);
         }
     }
 
-    record StringValue(String value) implements Expression {
+    record StringValue(String value, SpanData span) implements Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
             throw new RuntimeException("Not yet implemented");
@@ -228,11 +253,16 @@ public sealed interface Expression {
 
         @Override
         public AstType inferType(CodeGenerator builder) {
-            return new AstType.LibCPointer();
+            return new AstType.LibCPointer(span);
         }
     }
 
     record Box(Expression value) implements Expression {
+        @Override
+        public SpanData span() {
+            return this.value.span();
+        }
+
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
             return builder.wrapValueInRefCount(
@@ -251,6 +281,11 @@ public sealed interface Expression {
 
     record Unbox(Expression value) implements Expression {
         @Override
+        public SpanData span() {
+            return this.value.span();
+        }
+
+        @Override
         public Value compileInnerValue(CodeGenerator builder) {
             return builder.loadValueFromRefCount(
                 value
@@ -267,8 +302,11 @@ public sealed interface Expression {
         }
     }
 
-    record FieldAccess(Expression baseValuePtr, String identifier) implements
-        Expression {
+    record FieldAccess(
+        Expression baseValuePtr,
+        String identifier,
+        SpanData span
+    ) implements Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
             var baseType = baseValuePtr.inferType(builder);
@@ -315,8 +353,12 @@ public sealed interface Expression {
                         this.compilePath(builder)
                     );
             }
-            throw new RuntimeException(
-                "Type " + baseType + " does not have field " + identifier
+            throw new SpannedException(
+                this.span(),
+                new SpannedException.ErrorType.DoesNotSupportField(
+                    baseType,
+                    this.identifier
+                )
             );
         }
 
@@ -373,8 +415,12 @@ public sealed interface Expression {
                         )
                     );
             }
-            throw new RuntimeException(
-                "Type " + baseType + " does not have field " + identifier
+            throw new SpannedException(
+                this.span(),
+                new SpannedException.ErrorType.DoesNotSupportField(
+                    baseType,
+                    this.identifier
+                )
             );
         }
 
@@ -386,26 +432,34 @@ public sealed interface Expression {
                 baseType.unbox(builder.context()) instanceof AstType.Array _ &&
                 identifier.equals("length")
             ) {
-                return new AstType.Boxed(new AstType.Integer(64));
+                return new AstType.Boxed(new AstType.Integer(64, this.span));
             }
             if (
                 baseType.unbox(builder.context()) instanceof
-                    AstType.Struct(List<Header.Parameter> parameters)
+                    AstType.Struct(
+                        List<Header.Parameter> parameters,
+                        SpanData span
+                    )
             ) {
                 for (var param : parameters) {
                     if (param.name().equals(identifier)) {
                         return param.type();
                     }
                 }
-                throw new RuntimeException(
-                    "Type " + baseType + " does not have field " + identifier
+                throw new SpannedException(
+                    span,
+                    new SpannedException.ErrorType.DoesNotSupportField(
+                        baseType,
+                        this.identifier
+                    )
                 );
             }
-            throw new RuntimeException(
-                "Type " +
-                    baseType +
-                    " does not support access on field " +
-                    identifier
+            throw new SpannedException(
+                span,
+                new SpannedException.ErrorType.DoesNotSupportField(
+                    baseType,
+                    this.identifier
+                )
             );
         }
 
@@ -413,7 +467,10 @@ public sealed interface Expression {
             var baseType = baseValuePtr.inferType(builder);
             if (
                 baseType.unbox(builder.context()) instanceof
-                    AstType.Struct(List<Header.Parameter> parameters)
+                    AstType.Struct(
+                        List<Header.Parameter> parameters,
+                        SpanData span
+                    )
             ) {
                 int o = 0;
                 for (var param : parameters) {
@@ -422,22 +479,28 @@ public sealed interface Expression {
                     }
                     o += 1;
                 }
-                throw new RuntimeException(
-                    "Type " + baseType + " does not have field " + identifier
+                throw new SpannedException(
+                    span,
+                    new SpannedException.ErrorType.DoesNotSupportField(
+                        baseType,
+                        this.identifier
+                    )
                 );
             }
-            throw new RuntimeException(
-                "Type " +
-                    baseType +
-                    " does support access on field " +
-                    identifier
+            throw new SpannedException(
+                span,
+                new SpannedException.ErrorType.DoesNotSupportField(
+                    baseType,
+                    this.identifier
+                )
             );
         }
     }
 
     record Subscript(
         Expression baseArrayStackPtr,
-        Expression subValue
+        Expression subValue,
+        SpanData span
     ) implements Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
@@ -454,7 +517,7 @@ public sealed interface Expression {
             var type = baseArrayStackPtr.inferType(builder);
             if (
                 type.unbox(builder.context()) instanceof
-                    AstType.Array(AstType elementType)
+                    AstType.Array(AstType elementType, SpanData span)
             ) {
                 var loadedFromOriginal = builder
                     .codeBuilder()
@@ -488,7 +551,11 @@ public sealed interface Expression {
                     subValue
                 );
             }
-            throw new RuntimeException(this + " does not support subscripting");
+
+            throw new SpannedException(
+                span,
+                new SpannedException.ErrorType.DoesNotSupportSubscripting(type)
+            );
         }
 
         @Override
@@ -496,18 +563,24 @@ public sealed interface Expression {
             var baseType = baseArrayStackPtr.inferType(builder);
             if (
                 baseType.unbox(builder.context()) instanceof
-                    AstType.Array(AstType element)
+                    AstType.Array(AstType element, SpanData span)
             ) {
                 return element;
             }
-            throw new RuntimeException(
-                "Type " + baseType + " doesn't support subscripting"
+
+            throw new SpannedException(
+                this.span(),
+                new SpannedException.ErrorType.DoesNotSupportSubscripting(
+                    baseType
+                )
             );
         }
     }
 
-    record StructLiteral(List<StructLiteral.Field> fields) implements
-        Expression {
+    record StructLiteral(
+        List<StructLiteral.Field> fields,
+        SpanData span
+    ) implements Expression {
         public record Field(String name, AstType type, Expression value) {}
 
         @Override
@@ -535,12 +608,14 @@ public sealed interface Expression {
             return new AstType.Struct(
                 this.fields.stream()
                     .map(x -> new Header.Parameter(x.name(), x.type()))
-                    .toList()
+                    .toList(),
+                this.span()
             );
         }
     }
 
-    record ArrayLiteral(List<Expression> fields) implements Expression {
+    record ArrayLiteral(List<Expression> fields, SpanData span) implements
+        Expression {
         @Override
         public Value compileInnerValue(CodeGenerator builder) {
             var llvmArrayType = this.inferType(builder).toType(
@@ -571,7 +646,7 @@ public sealed interface Expression {
                         builder.ptrToArrayElement(
                             llvmElementType,
                             arrayObjectPtr,
-                            new Integer(i)
+                            new Integer(i, field.span())
                         )
                     );
                 i++;
@@ -597,14 +672,17 @@ public sealed interface Expression {
 
         @Override
         public AstType inferType(CodeGenerator builder) {
-            return new AstType.Array(this.inferElementType(builder));
+            return new AstType.Array(
+                this.inferElementType(builder),
+                this.span()
+            );
         }
 
         public AstType inferElementType(CodeGenerator builder) {
             try {
                 return this.fields.getFirst().inferType(builder);
             } catch (Exception e) {
-                return new AstType.Any();
+                return new AstType.Any(this.span());
             }
         }
     }

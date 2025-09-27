@@ -4,6 +4,7 @@ import acorn.parser.CodeGenerator;
 import acorn.parser.ctx.FunctionRecord;
 import acorn.parser.ctx.GlobalContext;
 import acorn.parser.ctx.StackMap;
+import acorn.token.SpanData;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -19,7 +20,8 @@ public sealed interface Header {
     record TypeAlias(
         String name,
         AstType type,
-        List<Annotation> annotations
+        List<Annotation> annotations,
+        SpanData span
     ) implements Header {
         @Override
         public void preprocess(GlobalContext context) {
@@ -35,7 +37,8 @@ public sealed interface Header {
         AstType returnType,
         List<Parameter> parameters,
         List<Statement> statements,
-        List<Annotation> annotations
+        List<Annotation> annotations,
+        SpanData span
     ) implements Header {
         public static String mangleSafely(String string) {
             return string
@@ -74,7 +77,7 @@ public sealed interface Header {
                 .functions()
                 .put(
                     this.name,
-                    new FunctionRecord(mangling, finalVarargs, this)
+                    new FunctionRecord(mangling, finalVarargs, this, this.span)
                 );
         }
 
@@ -122,7 +125,8 @@ public sealed interface Header {
                             sm.storeVariable(
                                 parameter.name(),
                                 paramSlot,
-                                parameter.type()
+                                parameter.type(),
+                                this.span
                             );
                         }
                         sm.pushFrame();

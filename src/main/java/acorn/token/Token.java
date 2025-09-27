@@ -1,57 +1,59 @@
 package acorn.token;
 
 public interface Token {
-    record Identifier(java.lang.String name) implements Token {}
+    SpanData span();
 
-    record Integer(long value) implements Token {}
+    record Identifier(java.lang.String name, SpanData span) implements Token {}
 
-    record Floating(double value) implements Token {}
+    record Integer(long value, SpanData span) implements Token {}
 
-    record CString(java.lang.String value) implements Token {}
+    record Floating(double value, SpanData span) implements Token {}
 
-    record String(java.lang.String value) implements Token {}
+    record CString(java.lang.String value, SpanData span) implements Token {}
 
-    record FnKeyword() implements Token {}
+    record String(java.lang.String value, SpanData span) implements Token {}
 
-    record ArrayKeyword() implements Token {}
+    record FnKeyword(SpanData span) implements Token {}
 
-    record TypeKeyword() implements Token {}
+    record ArrayKeyword(SpanData span) implements Token {}
 
-    record ReturnKeyword() implements Token {}
+    record TypeKeyword(SpanData span) implements Token {}
 
-    record StructKeyword() implements Token {}
+    record ReturnKeyword(SpanData span) implements Token {}
 
-    record BoxKeyword() implements Token {}
+    record StructKeyword(SpanData span) implements Token {}
 
-    record UnboxKeyword() implements Token {}
+    record BoxKeyword(SpanData span) implements Token {}
 
-    record RightArrow() implements Token {}
+    record UnboxKeyword(SpanData span) implements Token {}
 
-    record Equals() implements Token {}
+    record RightArrow(SpanData span) implements Token {}
 
-    record At() implements Token {}
+    record Equals(SpanData span) implements Token {}
 
-    record Period() implements Token {}
+    record At(SpanData span) implements Token {}
 
-    record Comma() implements Token {}
+    record Period(SpanData span) implements Token {}
 
-    record OpenBrace() implements Token {}
+    record Comma(SpanData span) implements Token {}
 
-    record CloseBrace() implements Token {}
+    record OpenBrace(SpanData span) implements Token {}
 
-    record OpenBracket() implements Token {}
+    record CloseBrace(SpanData span) implements Token {}
 
-    record CloseBracket() implements Token {}
+    record OpenBracket(SpanData span) implements Token {}
 
-    record OpenParen() implements Token {}
+    record CloseBracket(SpanData span) implements Token {}
 
-    record CloseParen() implements Token {}
+    record OpenParen(SpanData span) implements Token {}
 
-    record Plus() implements Token {}
+    record CloseParen(SpanData span) implements Token {}
 
-    record Minus() implements Token {}
+    record Plus(SpanData span) implements Token {}
 
-    record Star() implements Token {}
+    record Minus(SpanData span) implements Token {}
 
-    record Slash() implements Token {}
+    record Star(SpanData span) implements Token {}
+
+    record Slash(SpanData span) implements Token {}
 }

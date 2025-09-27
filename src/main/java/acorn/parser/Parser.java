@@ -2,6 +2,7 @@ package acorn.parser;
 
 import acorn.parser.ast.*;
 import acorn.reader.Reader;
+import acorn.token.SpannedException;
 import acorn.token.Token;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +15,15 @@ public class Parser {
 
     public static Parser create(List<Token> tokens) {
         var p = new Parser();
-        p.reader = Reader.create(tokens, List::get, List::size);
+        p.reader = Reader.create(tokens, List::get, List::size, (a, b) -> {
+            throw new SpannedException(
+                a.span(),
+                new SpannedException.ErrorType.UnexpectedToken(
+                    List.of(b),
+                    a.getClass()
+                )
+            );
+        });
         return p;
     }
 
@@ -65,8 +74,12 @@ public class Parser {
                 case Token.TypeKeyword _ -> list.add(
                     parseTypeAlias(annotations)
                 );
-                default -> throw new RuntimeException(
-                    "Invalid start of header at " + peek
+                default -> throw new SpannedException(
+                    peek.span(),
+                    new SpannedException.ErrorType.UnexpectedToken(
+                        List.of(Token.FnKeyword.class, Token.TypeKeyword.class),
+                        peek.getClass()
+                    )
                 );
             }
         }
@@ -89,7 +102,8 @@ public class Parser {
                 returnType,
                 params,
                 null,
-                annotations
+                annotations,
+                name.span()
             );
         }
         var body = this.parseBody();
@@ -98,7 +112,8 @@ public class Parser {
             returnType,
             params,
             body,
-            annotations
+            annotations,
+            name.span()
         );
     }
 
@@ -109,7 +124,12 @@ public class Parser {
         this.reader.expect(Token.Equals.class);
         var returnType = this.parseType();
 
-        return new Header.TypeAlias(name.name(), returnType, annotations);
+        return new Header.TypeAlias(
+            name.name(),
+            returnType,
+            annotations,
+            name.span()
+        );
     }
 
     public List<Statement> parseBody() {
@@ -156,11 +176,12 @@ public class Parser {
     public Expression parseTerm() {
         var expr = parseInvocation();
         while (reader.peek() instanceof Token.Plus) {
-            reader.expect(Token.Plus.class);
+            var sym = reader.expect(Token.Plus.class);
             expr = new Expression.Box(
                 new Expression.Addition(
                     new Expression.Unbox(expr),
-                    new Expression.Unbox(parseInvocation())
+                    new Expression.Unbox(parseInvocation()),
+                    sym.span()
                 )
             );
         }
@@ -169,10 +190,11 @@ public class Parser {
 
     public Expression parseInvocation() {
         var expr = parseBoxing();
-        while (reader.peek() instanceof Token.OpenParen) {
+        while (reader.peek() instanceof Token.OpenParen paren) {
             expr = new Expression.Invocation(
                 expr,
-                parseTuple(Parser::parseExpression)
+                parseTuple(Parser::parseExpression),
+                paren.span()
             );
         }
         return expr;
@@ -203,15 +225,18 @@ public class Parser {
     public Expression parseFieldAccess() {
         var expr = parseConstant();
         while (true) {
-            if (this.reader.peek() instanceof Token.Period) {
+            if (this.reader.peek() instanceof Token.Period period) {
                 this.reader.next();
                 var field = this.reader.expect(Token.Identifier.class).name();
-                expr = new Expression.FieldAccess(expr, field);
-            } else if (this.reader.peek() instanceof Token.OpenBracket) {
+                expr = new Expression.FieldAccess(expr, field, period.span());
+            } else if (
+                this.reader.peek() instanceof Token.OpenBracket bracket
+            ) {
                 this.reader.next();
                 expr = new Expression.Subscript(
                     expr,
-                    new Expression.Unbox(parseExpression())
+                    new Expression.Unbox(parseExpression()),
+                    bracket.span()
                 );
                 this.reader.expect(Token.CloseBracket.class);
             } else {
@@ -225,20 +250,38 @@ public class Parser {
         var n = this.reader.next();
         return switch (n) {
             case Token.Integer integer -> new Expression.Box(
-                new Expression.Integer(integer.value())
+                new Expression.Integer(integer.value(), integer.span())
             );
             case Token.CString str -> new Expression.CStringValue(
-                str.value().replace("\\0", "\0").replace("\\n", "\n")
+                str.value().replace("\\0", "\0").replace("\\n", "\n"),
+                str.span()
             );
             case Token.String str -> new Expression.StringValue(
-                str.value().replace("\\n", "\n")
+                str.value().replace("\\n", "\n"),
+                str.span()
             );
-            case Token.Identifier id -> new Expression.Variable(id.name());
+            case Token.Identifier id -> new Expression.Variable(
+                id.name(),
+                id.span()
+            );
             case Token.OpenBrace _ -> parseStructLiteral(this::parseExpression);
             case Token.OpenBracket _ -> parseArrayLiteral(
                 this::parseExpression
             );
-            default -> throw new RuntimeException("Invalid constant " + n);
+            default -> throw new SpannedException(
+                n.span(),
+                new SpannedException.ErrorType.UnexpectedToken(
+                    List.of(
+                        Token.Integer.class,
+                        Token.CString.class,
+                        Token.String.class,
+                        Token.Identifier.class,
+                        Token.OpenBrace.class,
+                        Token.OpenBracket.class
+                    ),
+                    n.getClass()
+                )
+            );
         };
     }
 
@@ -257,9 +300,11 @@ public class Parser {
                 this.reader.expect(Token.Comma.class);
             }
         }
-        this.reader.expect(Token.CloseBrace.class);
+        var cb = this.reader.expect(Token.CloseBrace.class);
 
-        return new Expression.Box(new Expression.StructLiteral(params));
+        return new Expression.Box(
+            new Expression.StructLiteral(params, cb.span())
+        );
     }
 
     public Expression parseArrayLiteral(Supplier<Expression> exprObtainer) {
@@ -272,19 +317,21 @@ public class Parser {
                 this.reader.expect(Token.Comma.class);
             }
         }
-        this.reader.expect(Token.CloseBracket.class);
+        var cb = this.reader.expect(Token.CloseBracket.class);
 
-        return new Expression.Box(new Expression.ArrayLiteral(params));
+        return new Expression.Box(
+            new Expression.ArrayLiteral(params, cb.span())
+        );
     }
 
     public AstType parseType() {
-        if (this.reader.peek() instanceof Token.OpenBracket) {
+        if (this.reader.peek() instanceof Token.OpenBracket ob) {
             this.reader.next();
             var innerType = this.parseType();
             this.reader.expect(Token.CloseBracket.class);
-            return new AstType.Boxed(new AstType.Array(innerType));
+            return new AstType.Boxed(new AstType.Array(innerType, ob.span()));
         }
-        if (this.reader.peek() instanceof Token.OpenBrace) {
+        if (this.reader.peek() instanceof Token.OpenBrace ob) {
             var params = new ArrayList<Header.Parameter>();
             this.reader.expect(Token.OpenBrace.class);
             while (!(this.reader.peek() instanceof Token.CloseBrace)) {
@@ -295,7 +342,7 @@ public class Parser {
             }
             this.reader.expect(Token.CloseBrace.class);
 
-            return new AstType.Boxed(new AstType.Struct(params));
+            return new AstType.Boxed(new AstType.Struct(params, ob.span()));
         }
         if (this.reader.peek() instanceof Token.UnboxKeyword) {
             this.reader.next();
@@ -303,7 +350,7 @@ public class Parser {
         }
         var name = this.reader.expect(Token.Identifier.class);
         if (name.name().equals("void")) {
-            return new AstType.Void();
+            return new AstType.Void(name.span());
         }
         return new AstType.Boxed(parseUnboxedType(name));
     }
@@ -316,12 +363,12 @@ public class Parser {
             var replaced = name.name().replace("i", "");
             try {
                 var bits = Integer.parseInt(replaced);
-                return new AstType.Integer(bits);
+                return new AstType.Integer(bits, name.span());
             } catch (Exception ignored) {}
         }
         if (name.name().equals("libc::ptr")) {
-            return new AstType.LibCPointer();
+            return new AstType.LibCPointer(name.span());
         }
-        return new AstType.Unresolved(name.name());
+        return new AstType.Unresolved(name.name(), name.span());
     }
 }

@@ -1,6 +1,7 @@
 package acorn.parser.ast;
 
 import acorn.parser.CodeGenerator;
+import acorn.token.SpanData;
 
 public sealed interface Statement {
     default void compile(CodeGenerator gen) {
@@ -35,7 +36,10 @@ public sealed interface Statement {
     record StoreValue(Expression path, Expression expr) implements Statement {
         @Override
         public void compileInner(CodeGenerator gen) {
-            if (path instanceof Expression.Variable(String variableName)) {
+            if (
+                path instanceof
+                    Expression.Variable(String variableName, SpanData spanData)
+            ) {
                 if (!gen.stackMap().hasLocalVariable(variableName)) {
                     gen
                         .stackMap()
@@ -46,7 +50,8 @@ public sealed interface Statement {
                                 .alloca(
                                     expr.inferType(gen).toType(gen.context())
                                 ),
-                            expr.inferType(gen)
+                            expr.inferType(gen),
+                            spanData
                         );
                 }
             }

@@ -1,20 +1,26 @@
 package acorn.token;
 
 import acorn.reader.Reader;
+import acorn.token.SpanData.ColumnAndRow;
+import acorn.ui.ErrorPrinter;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Tokenizer {
 
     Reader<String, Character> stringReader;
+    String fileName;
     List<Token> tokens = new ArrayList<>();
 
-    public static Tokenizer create(String source) {
+    public static Tokenizer create(String source, String fileName) {
+        ErrorPrinter.FILE_CONTENTS.put(fileName, source);
         var t = new Tokenizer();
+        t.fileName = fileName;
         t.stringReader = Reader.create(
             source + "\n\n\n",
             String::charAt,
-            String::length
+            String::length,
+            (_, _) -> {}
         );
         return t;
     }
@@ -50,7 +56,7 @@ public class Tokenizer {
             }
             stringReader.next();
 
-            return new Token.CString(sb.toString());
+            return new Token.CString(sb.toString(), this.createSpanData());
         }
 
         // tokenize identifiers
@@ -64,13 +70,16 @@ public class Tokenizer {
             }
             var str = sb.toString();
             return switch (str) {
-                case "fn" -> new Token.FnKeyword();
-                case "return" -> new Token.ReturnKeyword();
-                case "type" -> new Token.TypeKeyword();
-                case "box" -> new Token.BoxKeyword();
-                case "unbox" -> new Token.UnboxKeyword();
-                case "struct" -> new Token.StructKeyword();
-                default -> new Token.Identifier(sb.toString());
+                case "fn" -> new Token.FnKeyword(this.createSpanData());
+                case "return" -> new Token.ReturnKeyword(this.createSpanData());
+                case "type" -> new Token.TypeKeyword(this.createSpanData());
+                case "box" -> new Token.BoxKeyword(this.createSpanData());
+                case "unbox" -> new Token.UnboxKeyword(this.createSpanData());
+                case "struct" -> new Token.StructKeyword(this.createSpanData());
+                default -> new Token.Identifier(
+                    sb.toString(),
+                    this.createSpanData()
+                );
             };
         }
 
@@ -85,9 +94,15 @@ public class Tokenizer {
             }
             var str = sb.toString();
             if (str.contains(".")) {
-                return new Token.Floating(Double.parseDouble(str));
+                return new Token.Floating(
+                    Double.parseDouble(str),
+                    this.createSpanData()
+                );
             } else {
-                return new Token.Integer(Integer.parseInt(str));
+                return new Token.Integer(
+                    Integer.parseInt(str),
+                    this.createSpanData()
+                );
             }
         }
 
@@ -99,28 +114,28 @@ public class Tokenizer {
             }
             stringReader.next();
 
-            return new Token.String(sb.toString());
+            return new Token.String(sb.toString(), this.createSpanData());
         }
 
         // parse misc symbols
         return switch (stringReader.next()) {
-            case '{' -> new Token.OpenBrace();
-            case '}' -> new Token.CloseBrace();
-            case '(' -> new Token.OpenParen();
-            case ')' -> new Token.CloseParen();
-            case '[' -> new Token.OpenBracket();
-            case ']' -> new Token.CloseBracket();
-            case '+' -> new Token.Plus();
+            case '{' -> new Token.OpenBrace(this.createSpanData());
+            case '}' -> new Token.CloseBrace(this.createSpanData());
+            case '(' -> new Token.OpenParen(this.createSpanData());
+            case ')' -> new Token.CloseParen(this.createSpanData());
+            case '[' -> new Token.OpenBracket(this.createSpanData());
+            case ']' -> new Token.CloseBracket(this.createSpanData());
+            case '+' -> new Token.Plus(this.createSpanData());
             case '-' -> switch (stringReader.peek()) {
-                case '>' -> new Token.RightArrow();
-                default -> new Token.Minus();
+                case '>' -> new Token.RightArrow(this.createSpanData());
+                default -> new Token.Minus(this.createSpanData());
             };
-            case '*' -> new Token.Star();
-            case '/' -> new Token.Slash();
-            case '@' -> new Token.At();
-            case ',' -> new Token.Comma();
-            case '=' -> new Token.Equals();
-            case '.' -> new Token.Period();
+            case '*' -> new Token.Star(this.createSpanData());
+            case '/' -> new Token.Slash(this.createSpanData());
+            case '@' -> new Token.At(this.createSpanData());
+            case ',' -> new Token.Comma(this.createSpanData());
+            case '=' -> new Token.Equals(this.createSpanData());
+            case '.' -> new Token.Period(this.createSpanData());
             default -> null;
         };
     }
@@ -131,5 +146,23 @@ public class Tokenizer {
             stringReader.next();
             ch = stringReader.peek();
         }
+    }
+
+    public SpanData createSpanData() {
+        return new SpanData(this.columnAndRow(), this.fileName);
+    }
+
+    public ColumnAndRow columnAndRow() {
+        int column = 0;
+        int row = 0;
+        for (int i = 0; i < this.stringReader.index(); i++) {
+            column += 1;
+            if (this.stringReader.value().charAt(i) == '\n') {
+                column = 0;
+                row += 1;
+            }
+        }
+
+        return new ColumnAndRow(column, row);
     }
 }

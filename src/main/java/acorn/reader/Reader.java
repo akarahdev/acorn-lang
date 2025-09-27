@@ -1,5 +1,6 @@
 package acorn.reader;
 
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -10,16 +11,19 @@ public class Reader<T, E> {
     int index = 0;
     BiFunction<T, Integer, E> indexFunction;
     Function<T, Integer> lengthFunction;
+    BiConsumer<E, Class<? extends E>> predicateFailureFunction;
 
     public static <T, E> Reader<T, E> create(
         T value,
         BiFunction<T, Integer, E> indexFunction,
-        Function<T, Integer> lengthFunction
+        Function<T, Integer> lengthFunction,
+        BiConsumer<E, Class<? extends E>> exceptionFunction
     ) {
         var r = new Reader<T, E>();
         r.value = value;
         r.indexFunction = indexFunction;
         r.lengthFunction = lengthFunction;
+        r.predicateFailureFunction = exceptionFunction;
         return r;
     }
 
@@ -33,6 +37,10 @@ public class Reader<T, E> {
 
     public boolean hasNext() {
         return index < length();
+    }
+
+    public T value() {
+        return this.value;
     }
 
     public E next() {
@@ -60,12 +68,16 @@ public class Reader<T, E> {
     }
 
     public E expect(Predicate<E> predicate) {
-        assert predicate.test(peek());
+        if (!predicate.test(peek())) {
+            this.predicateFailureFunction.accept(peek(), null);
+        }
         return next();
     }
 
     public <EA extends E> EA expect(Class<EA> clazz) {
-        assert clazz.isInstance(peek());
+        if (!clazz.isInstance(peek())) {
+            this.predicateFailureFunction.accept(peek(), clazz);
+        }
         return clazz.cast(next());
     }
 }

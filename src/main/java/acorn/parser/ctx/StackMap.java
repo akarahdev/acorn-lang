@@ -1,6 +1,8 @@
 package acorn.parser.ctx;
 
 import acorn.parser.ast.AstType;
+import acorn.token.SpanData;
+import acorn.token.SpannedException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,9 +21,14 @@ public record StackMap(List<Frame> stackFrames) {
         return this.stackFrames.removeLast();
     }
 
-    public void storeVariable(String name, Value allocaPtr, AstType varType) {
+    public void storeVariable(
+        String name,
+        Value allocaPtr,
+        AstType varType,
+        SpanData span
+    ) {
         try {
-            var previousType = this.getLocalVariable(name);
+            var previousType = this.getLocalVariable(name, span);
             assert previousType.type().equals(varType);
         } catch (Exception e) {
             this.stackFrames.getLast()
@@ -40,14 +47,16 @@ public record StackMap(List<Frame> stackFrames) {
     }
 
     /// @throws RuntimeException If the variable is not defined
-    public VariableData getLocalVariable(String name) {
+    public VariableData getLocalVariable(String name, SpanData span) {
         for (var frame : this.stackFrames) {
             if (frame.localVariables.containsKey(name)) {
                 return frame.localVariables.get(name);
             }
         }
-        throw new RuntimeException(
-            "Unable to infer type of local variable " + name
+
+        throw new SpannedException(
+            span,
+            new SpannedException.ErrorType.VariableDoesNotExist(name)
         );
     }
 }
