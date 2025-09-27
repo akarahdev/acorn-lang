@@ -517,7 +517,7 @@ public sealed interface Expression {
             var type = baseArrayStackPtr.inferType(builder);
             if (
                 type.unbox(builder.context()) instanceof
-                    AstType.Array(AstType elementType, SpanData span)
+                    AstType.Array(AstType elementType, SpanData _)
             ) {
                 var loadedFromOriginal = builder
                     .codeBuilder()
@@ -563,7 +563,7 @@ public sealed interface Expression {
             var baseType = baseArrayStackPtr.inferType(builder);
             if (
                 baseType.unbox(builder.context()) instanceof
-                    AstType.Array(AstType element, SpanData span)
+                    AstType.Array(AstType element, SpanData _)
             ) {
                 return element;
             }
