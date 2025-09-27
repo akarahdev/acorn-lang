@@ -51,6 +51,16 @@ public class SpannedException extends RuntimeException {
             }
         }
 
+        public record ParameterCountMismatch(int expected, int found) implements
+            ErrorType {
+            @Override
+            public String message() {
+                return (
+                    "Expected " + expected + " parameters, found " + found + "."
+                );
+            }
+        }
+
         record DoesNotSupportSubscripting(AstType type) implements ErrorType {
             @Override
             public String message() {
@@ -62,6 +72,13 @@ public class SpannedException extends RuntimeException {
             @Override
             public String message() {
                 return "Type `" + type + "` can not be pathed into.";
+            }
+        }
+
+        record DoesNotSupportInvocation(AstType type) implements ErrorType {
+            @Override
+            public String message() {
+                return "Type `" + type + "` can not be invoked.";
             }
         }
 

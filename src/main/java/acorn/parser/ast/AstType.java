@@ -31,6 +31,10 @@ public sealed interface AstType {
         return this.toString();
     }
 
+    default boolean typeEquals(AstType other) {
+        return this.toString().equals(other.toString());
+    }
+
     SpanData span();
 
     record Unresolved(String name, SpanData span) implements AstType {

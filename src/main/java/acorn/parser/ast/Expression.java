@@ -11,11 +11,16 @@ import llvm4j.module.value.Value;
 
 public sealed interface Expression {
     SpanData span();
+    Value compileInnerValue(CodeGenerator builder);
+    AstType inferType(CodeGenerator builder);
+
+    default void typecheck(CodeGenerator builder) {}
 
     default Value compileValue(CodeGenerator builder) {
         builder
             .codeBuilder()
             .comment("ENTER " + this.toString().replaceAll("\n", "[nl]"));
+        this.typecheck(builder);
         var h = this.compileInnerValue(builder);
         builder
             .codeBuilder()
@@ -24,12 +29,11 @@ public sealed interface Expression {
         return h;
     }
 
-    Value compileInnerValue(CodeGenerator builder);
-
     default Value compilePath(CodeGenerator builder) {
         builder
             .codeBuilder()
             .comment("ENTER PATH " + this.toString().replaceAll("\n", "[nl]"));
+        this.typecheck(builder);
         var ip = compileInnerPath(builder);
         builder
             .codeBuilder()
@@ -57,8 +61,6 @@ public sealed interface Expression {
             )
         );
     }
-
-    AstType inferType(CodeGenerator builder);
 
     default Expression debox() {
         if (this instanceof Box(Expression value)) {
@@ -226,6 +228,47 @@ public sealed interface Expression {
                 (AstType.Function) functionPointer.inferType(builder)
             ).returned();
         }
+
+        @Override
+        public void typecheck(CodeGenerator builder) {
+            var functionType = functionPointer.inferType(builder);
+            if (functionType instanceof AstType.Function function) {
+                if (
+                    function.parameters().size() != this.args().size() &&
+                    !(function.varargs() &&
+                        this.args().size() > function.parameters().size())
+                ) {
+                    throw new SpannedException(
+                        this.span(),
+                        new SpannedException.ErrorType.ParameterCountMismatch(
+                            function.parameters().size(),
+                            this.args().size()
+                        )
+                    );
+                }
+                for (int i = 0; i < function.parameters().size(); i++) {
+                    var parameter = this.args().get(i);
+                    var parameterType = parameter.inferType(builder);
+                    var argumentType = this.args().get(i).inferType(builder);
+                    if (!parameterType.typeEquals(argumentType)) {
+                        throw new SpannedException(
+                            this.span(),
+                            new SpannedException.ErrorType.WrongType(
+                                List.of(parameterType),
+                                argumentType
+                            )
+                        );
+                    }
+                }
+            } else {
+                throw new SpannedException(
+                    this.span(),
+                    new SpannedException.ErrorType.DoesNotSupportInvocation(
+                        functionType
+                    )
+                );
+            }
+        }
     }
 
     record Addition(Expression left, Expression right, SpanData span) implements
@@ -246,8 +289,20 @@ public sealed interface Expression {
 
         @Override
         public AstType inferType(CodeGenerator builder) {
-            assert left.inferType(builder).equals(right.inferType(builder));
             return left.inferType(builder);
+        }
+
+        @Override
+        public void typecheck(CodeGenerator builder) {
+            if (!left.inferType(builder).typeEquals(right.inferType(builder))) {
+                throw new SpannedException(
+                    right.span(),
+                    new SpannedException.ErrorType.WrongType(
+                        List.of(left.inferType(builder)),
+                        right.inferType(builder)
+                    )
+                );
+            }
         }
     }
 
@@ -609,6 +664,24 @@ public sealed interface Expression {
                 )
             );
         }
+
+        @Override
+        public void typecheck(CodeGenerator builder) {
+            var baseType = baseArrayStackPtr.inferType(builder);
+            if (
+                baseType.unbox(builder.context()) instanceof
+                    AstType.Array(AstType _, SpanData _)
+            ) {
+                return;
+            }
+
+            throw new SpannedException(
+                this.span(),
+                new SpannedException.ErrorType.DoesNotSupportSubscripting(
+                    baseType
+                )
+            );
+        }
     }
 
     record StructLiteral(
@@ -717,6 +790,22 @@ public sealed interface Expression {
                 return this.fields.getFirst().inferType(builder);
             } catch (Exception e) {
                 return new AstType.Any(this.span());
+            }
+        }
+
+        @Override
+        public void typecheck(CodeGenerator builder) {
+            var elementType = this.inferElementType(builder);
+            for (var entry : this.fields) {
+                if (!(entry.inferType(builder).typeEquals(elementType))) {
+                    throw new SpannedException(
+                        entry.span(),
+                        new SpannedException.ErrorType.WrongType(
+                            List.of(elementType),
+                            entry.inferType(builder)
+                        )
+                    );
+                }
             }
         }
     }

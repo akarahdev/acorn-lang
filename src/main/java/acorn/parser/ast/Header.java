@@ -171,7 +171,10 @@ public sealed interface Header {
                         }
                         sm.pushFrame();
                         for (var statement : this.statements) {
-                            statement.compile(cg);
+                            statement.compile(
+                                cg,
+                                context.functions().get(namespace + this.name)
+                            );
                         }
                         sm.popFrame();
                         sm.popFrame();

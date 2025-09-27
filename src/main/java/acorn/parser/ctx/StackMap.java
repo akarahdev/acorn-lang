@@ -27,10 +27,18 @@ public record StackMap(List<Frame> stackFrames) {
         AstType varType,
         SpanData span
     ) {
-        try {
+        if (this.hasLocalVariable(name)) {
             var previousType = this.getLocalVariable(name, span);
-            assert previousType.type().equals(varType);
-        } catch (Exception e) {
+            if (!previousType.type().typeEquals(varType)) {
+                throw new SpannedException(
+                    span,
+                    new SpannedException.ErrorType.WrongType(
+                        List.of(previousType.type()),
+                        varType
+                    )
+                );
+            }
+        } else {
             this.stackFrames.getLast()
                 .localVariables()
                 .put(name, new VariableData(varType, allocaPtr));
