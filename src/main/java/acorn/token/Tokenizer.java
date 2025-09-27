@@ -20,7 +20,8 @@ public class Tokenizer {
             source + "\n\n\n",
             String::charAt,
             String::length,
-            (_, _) -> {}
+            (_, _) -> {},
+            () -> {}
         );
         return t;
     }

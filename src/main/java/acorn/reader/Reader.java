@@ -12,18 +12,21 @@ public class Reader<T, E> {
     BiFunction<T, Integer, E> indexFunction;
     Function<T, Integer> lengthFunction;
     BiConsumer<E, Class<? extends E>> predicateFailureFunction;
+    Runnable peekFailureFunction;
 
     public static <T, E> Reader<T, E> create(
         T value,
         BiFunction<T, Integer, E> indexFunction,
         Function<T, Integer> lengthFunction,
-        BiConsumer<E, Class<? extends E>> exceptionFunction
+        BiConsumer<E, Class<? extends E>> exceptionFunction,
+        Runnable peekFailureFunction
     ) {
         var r = new Reader<T, E>();
         r.value = value;
         r.indexFunction = indexFunction;
         r.lengthFunction = lengthFunction;
         r.predicateFailureFunction = exceptionFunction;
+        r.peekFailureFunction = peekFailureFunction;
         return r;
     }
 
@@ -47,6 +50,7 @@ public class Reader<T, E> {
         try {
             return indexFunction.apply(value, index++);
         } catch (Exception e) {
+            peekFailureFunction.run();
             return null;
         }
     }
@@ -55,6 +59,7 @@ public class Reader<T, E> {
         try {
             return indexFunction.apply(value, index);
         } catch (Exception e) {
+            peekFailureFunction.run();
             return null;
         }
     }
@@ -63,6 +68,7 @@ public class Reader<T, E> {
         try {
             return indexFunction.apply(value, index + ahead);
         } catch (Exception e) {
+            peekFailureFunction.run();
             return null;
         }
     }

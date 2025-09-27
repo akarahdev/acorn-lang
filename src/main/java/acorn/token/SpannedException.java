@@ -44,6 +44,13 @@ public class SpannedException extends RuntimeException {
             }
         }
 
+        public record UnexpectedEOF() implements ErrorType {
+            @Override
+            public String message() {
+                return ("Unexpected end of file.");
+            }
+        }
+
         record DoesNotSupportSubscripting(AstType type) implements ErrorType {
             @Override
             public String message() {

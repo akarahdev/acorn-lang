@@ -15,15 +15,26 @@ public class Parser {
 
     public static Parser create(List<Token> tokens) {
         var p = new Parser();
-        p.reader = Reader.create(tokens, List::get, List::size, (a, b) -> {
-            throw new SpannedException(
-                a.span(),
-                new SpannedException.ErrorType.UnexpectedToken(
-                    List.of(b),
-                    a.getClass()
-                )
-            );
-        });
+        p.reader = Reader.create(
+            tokens,
+            List::get,
+            List::size,
+            (a, b) -> {
+                throw new SpannedException(
+                    a.span(),
+                    new SpannedException.ErrorType.UnexpectedToken(
+                        List.of(b),
+                        a.getClass()
+                    )
+                );
+            },
+            () -> {
+                throw new SpannedException(
+                    tokens.getLast().span(),
+                    new SpannedException.ErrorType.UnexpectedEOF()
+                );
+            }
+        );
         return p;
     }
 
@@ -73,6 +84,9 @@ public class Parser {
         ) {
             var annotations = parseAnnotations();
             var peek = this.reader.peek();
+            if (peek == null) {
+                break;
+            }
             switch (peek) {
                 case Token.FnKeyword _ -> list.add(parseFunction(annotations));
                 case Token.TypeKeyword _ -> list.add(
