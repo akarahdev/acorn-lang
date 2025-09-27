@@ -4,7 +4,6 @@ import acorn.parser.CodeGenerator;
 import acorn.parser.ctx.FunctionRecord;
 import acorn.parser.ctx.GlobalContext;
 import acorn.parser.ctx.StackMap;
-import acorn.parser.ctx.StructRecord;
 import java.util.ArrayList;
 import java.util.List;
 import llvm4j.module.Module;

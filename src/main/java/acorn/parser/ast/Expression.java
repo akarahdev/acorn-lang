@@ -35,7 +35,7 @@ public sealed interface Expression {
     }
 
     default Value compileInnerPath(CodeGenerator builder) {
-        if (this instanceof Box(Expression value)) {
+        if (this instanceof Box(Expression _)) {
             throw new RuntimeException(
                 "Cannot use boxed value as a pointer path"
             );
@@ -273,8 +273,7 @@ public sealed interface Expression {
         public Value compileInnerValue(CodeGenerator builder) {
             var baseType = baseValuePtr.inferType(builder);
             if (
-                baseType.unbox(builder.context()) instanceof
-                    AstType.Array array &&
+                baseType.unbox(builder.context()) instanceof AstType.Array _ &&
                 identifier.equals("length")
             ) {
                 var loadedFromOriginal = builder
@@ -308,10 +307,7 @@ public sealed interface Expression {
                     8
                 );
             }
-            if (
-                baseType.unbox(builder.context()) instanceof
-                    AstType.Struct struct
-            ) {
+            if (baseType.unbox(builder.context()) instanceof AstType.Struct _) {
                 return builder
                     .codeBuilder()
                     .load(
@@ -387,8 +383,7 @@ public sealed interface Expression {
             var baseType = baseValuePtr.inferType(builder);
 
             if (
-                baseType.unbox(builder.context()) instanceof
-                    AstType.Array array &&
+                baseType.unbox(builder.context()) instanceof AstType.Array _ &&
                 identifier.equals("length")
             ) {
                 return new AstType.Boxed(new AstType.Integer(64));
