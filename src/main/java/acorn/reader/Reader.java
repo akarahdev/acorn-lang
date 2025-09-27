@@ -5,12 +5,17 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class Reader<T, E> {
+
     T value;
     int index = 0;
     BiFunction<T, Integer, E> indexFunction;
     Function<T, Integer> lengthFunction;
 
-    public static <T, E> Reader<T, E> create(T value, BiFunction<T, Integer, E> indexFunction, Function<T, Integer> lengthFunction) {
+    public static <T, E> Reader<T, E> create(
+        T value,
+        BiFunction<T, Integer, E> indexFunction,
+        Function<T, Integer> lengthFunction
+    ) {
         var r = new Reader<T, E>();
         r.value = value;
         r.indexFunction = indexFunction;

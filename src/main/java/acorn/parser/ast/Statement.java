@@ -4,40 +4,60 @@ import acorn.parser.CodeGenerator;
 
 public sealed interface Statement {
     default void compile(CodeGenerator gen) {
-        gen.codeBuilder().comment("ENTER STATEMENT " + this.toString().replace("\n", "[n]"));
+        gen
+            .codeBuilder()
+            .comment("ENTER STATEMENT " + this.toString().replace("\n", "[n]"));
         this.compileInner(gen);
-        gen.codeBuilder().comment("EXIT STATEMENT " + this.toString().replace("\n", "[n]"));
+        gen
+            .codeBuilder()
+            .comment("EXIT STATEMENT " + this.toString().replace("\n", "[n]"));
     }
+
     void compileInner(CodeGenerator gen);
 
     record Ret(Expression expr) implements Statement {
         @Override
         public void compileInner(CodeGenerator gen) {
-            if(expr == null) {
+            if (expr == null) {
                 gen.codeBuilder().ret();
                 return;
             }
-            gen.codeBuilder().ret(expr.compileValue(gen).typed(expr.inferType(gen).toType(gen.context())));
+            gen
+                .codeBuilder()
+                .ret(
+                    expr
+                        .compileValue(gen)
+                        .typed(expr.inferType(gen).toType(gen.context()))
+                );
         }
     }
 
     record StoreValue(Expression path, Expression expr) implements Statement {
-
         @Override
         public void compileInner(CodeGenerator gen) {
-            if(path instanceof Expression.Variable(String variableName)) {
-                if(!gen.stackMap().hasLocalVariable(variableName)) {
-                    gen.stackMap().storeVariable(
+            if (path instanceof Expression.Variable(String variableName)) {
+                if (!gen.stackMap().hasLocalVariable(variableName)) {
+                    gen
+                        .stackMap()
+                        .storeVariable(
                             variableName,
-                            gen.codeBuilder().alloca(expr.inferType(gen).toType(gen.context())),
+                            gen
+                                .codeBuilder()
+                                .alloca(
+                                    expr.inferType(gen).toType(gen.context())
+                                ),
                             expr.inferType(gen)
-                    );
+                        );
                 }
             }
-            gen.codeBuilder().store(
-                    expr.compileValue(gen).typed(expr.inferType(gen).toType(gen.context())),
+            gen
+                .codeBuilder()
+                .store(
+                    expr
+                        .compileValue(gen)
+                        .typed(expr.inferType(gen).toType(gen.context())),
                     path.compilePath(gen)
-            );
+                );
         }
     }
 

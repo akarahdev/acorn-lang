@@ -1,17 +1,16 @@
 package acorn.parser.ast;
 
 import acorn.parser.ctx.GlobalContext;
-import llvm4j.module.type.Type;
-
 import java.util.List;
+import llvm4j.module.type.Type;
 
 public sealed interface AstType {
     default AstType unbox(GlobalContext context) {
-        if(this instanceof Boxed(AstType type)) {
+        if (this instanceof Boxed(AstType type)) {
             return type.unbox(context);
         }
-        if(this instanceof Unresolved(String name)) {
-            if(context.typeAliases().containsKey(name)) {
+        if (this instanceof Unresolved(String name)) {
+            if (context.typeAliases().containsKey(name)) {
                 return context.typeAliases().get(name).unbox(context);
             } else {
                 throw new RuntimeException(name + " is not a valid type");
@@ -64,13 +63,20 @@ public sealed interface AstType {
         }
     }
 
-    record Function(AstType returned, List<AstType> parameters, boolean varargs) implements AstType {
+    record Function(
+        AstType returned,
+        List<AstType> parameters,
+        boolean varargs
+    ) implements AstType {
         @Override
         public Type toType(GlobalContext context) {
             return Type.function(
-                    returned.toType(context),
-                    parameters.stream().map(x -> x.toType(context)).toList(),
-                    varargs
+                returned.toType(context),
+                parameters
+                    .stream()
+                    .map(x -> x.toType(context))
+                    .toList(),
+                varargs
             );
         }
     }
@@ -79,7 +85,10 @@ public sealed interface AstType {
         @Override
         public Type toType(GlobalContext context) {
             return Type.struct(
-                    parameters.stream().map(x -> x.type().toType(context)).toList()
+                parameters
+                    .stream()
+                    .map(x -> x.type().toType(context))
+                    .toList()
             );
         }
     }
@@ -87,10 +96,7 @@ public sealed interface AstType {
     record Array(AstType param) implements AstType {
         @Override
         public Type toType(GlobalContext context) {
-            return Type.struct(List.of(
-                    Type.integer(64),
-                    Type.ptr()
-            ));
+            return Type.struct(List.of(Type.integer(64), Type.ptr()));
         }
     }
 }

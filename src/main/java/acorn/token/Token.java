@@ -1,111 +1,57 @@
 package acorn.token;
 
 public interface Token {
-    record Identifier(java.lang.String name) implements Token {
+    record Identifier(java.lang.String name) implements Token {}
 
-    }
+    record Integer(long value) implements Token {}
 
-    record Integer(long value) implements Token {
+    record Floating(double value) implements Token {}
 
-    }
+    record CString(java.lang.String value) implements Token {}
 
-    record Floating(double value) implements Token {
+    record String(java.lang.String value) implements Token {}
 
-    }
+    record FnKeyword() implements Token {}
 
-    record CString(java.lang.String value) implements Token {
+    record ArrayKeyword() implements Token {}
 
-    }
+    record TypeKeyword() implements Token {}
 
-    record String(java.lang.String value) implements Token {
+    record ReturnKeyword() implements Token {}
 
-    }
+    record StructKeyword() implements Token {}
 
-    record FnKeyword() implements Token {
+    record BoxKeyword() implements Token {}
 
-    }
+    record UnboxKeyword() implements Token {}
 
-    record ArrayKeyword() implements Token {
+    record RightArrow() implements Token {}
 
-    }
+    record Equals() implements Token {}
 
-    record TypeKeyword() implements Token {
+    record At() implements Token {}
 
-    }
+    record Period() implements Token {}
 
-    record ReturnKeyword() implements Token {
+    record Comma() implements Token {}
 
-    }
+    record OpenBrace() implements Token {}
 
-    record StructKeyword() implements Token {
+    record CloseBrace() implements Token {}
 
-    }
+    record OpenBracket() implements Token {}
 
-    record BoxKeyword() implements Token {
+    record CloseBracket() implements Token {}
 
-    }
+    record OpenParen() implements Token {}
 
-    record UnboxKeyword() implements Token {
+    record CloseParen() implements Token {}
 
-    }
+    record Plus() implements Token {}
 
-    record RightArrow() implements Token {
+    record Minus() implements Token {}
 
-    }
+    record Star() implements Token {}
 
-    record Equals() implements Token {
-
-    }
-
-    record At() implements Token {
-
-    }
-
-    record Period() implements Token {
-
-    }
-
-    record Comma() implements Token {
-
-    }
-
-    record OpenBrace() implements Token {
-
-    }
-
-    record CloseBrace() implements Token {
-
-    }
-
-    record OpenBracket() implements Token {
-
-    }
-
-    record CloseBracket() implements Token {
-
-    }
-
-    record OpenParen() implements Token {
-
-    }
-
-    record CloseParen() implements Token {
-
-    }
-
-    record Plus() implements Token {
-
-    }
-
-    record Minus() implements Token {
-
-    }
-
-    record Star() implements Token {
-
-    }
-
-    record Slash() implements Token {
-
-    }
+    record Slash() implements Token {}
 }

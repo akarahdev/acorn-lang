@@ -1,22 +1,23 @@
 package acorn;
 
-import acorn.parser.ctx.GlobalContext;
 import acorn.parser.Parser;
+import acorn.parser.ctx.GlobalContext;
 import acorn.token.Tokenizer;
-import llvm4j.module.Module;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.util.Objects;
+import llvm4j.module.Module;
 
 public class Main {
-    static void main(String[] args) throws IOException, InterruptedException, URISyntaxException {
+    public static void main(String[] args)
+        throws IOException, InterruptedException, URISyntaxException {
         var stdlib = loadStdlib();
 
         var sourceFilePath = args[0];
-        var contents = stdlib + "\n" + Files.readString(Paths.get(sourceFilePath));
+        var contents =
+            stdlib + "\n" + Files.readString(Paths.get(sourceFilePath));
 
         var tokens = Tokenizer.create(contents).tokenize();
         System.out.println(tokens);
@@ -31,7 +32,9 @@ public class Main {
         functions.forEach(x -> x.emit(module, ctx));
         module.build().emit(Paths.get("./build/out.ll"));
 
-        var p1 = Runtime.getRuntime().exec(new String[] { "clang", "./build/out.ll", "-o", "./build/a.out" });
+        var p1 = Runtime.getRuntime().exec(
+            new String[] { "clang", "./build/out.ll", "-o", "./build/a.out" }
+        );
         p1.getInputStream().transferTo(System.out);
         p1.getErrorStream().transferTo(System.err);
         p1.waitFor();
@@ -45,13 +48,19 @@ public class Main {
 
     static String loadStdlib() throws URISyntaxException, IOException {
         var sb = new StringBuilder();
-        var files = new String[] {
-                "/std/entrypoint.acorn",
-                "/std/libc.acorn",
-        };
-        for(var file : files) {
-            sb.append(Files.readString(Paths.get(Objects.requireNonNull(Main.class.getResource(file)).toURI())))
-                    .append("\n\n");
+        var files = new String[] { "/std/entrypoint.acorn", "/std/libc.acorn" };
+        for (var file : files) {
+            sb
+                .append(
+                    Files.readString(
+                        Paths.get(
+                            Objects.requireNonNull(
+                                Main.class.getResource(file)
+                            ).toURI()
+                        )
+                    )
+                )
+                .append("\n\n");
         }
         return sb.toString();
     }

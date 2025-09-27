@@ -1,24 +1,15 @@
 package acorn.parser.ctx;
 
 import acorn.parser.ast.AstType;
-import llvm4j.module.value.Value;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import llvm4j.module.value.Value;
 
-public record StackMap(
-    List<Frame> stackFrames
-) {
-    public record VariableData(
-            AstType type,
-            Value stackSlot
-    ) {
+public record StackMap(List<Frame> stackFrames) {
+    public record VariableData(AstType type, Value stackSlot) {}
 
-    }
-    public record Frame(
-            Map<String, VariableData> localVariables
-    ) {}
+    public record Frame(Map<String, VariableData> localVariables) {}
 
     public void pushFrame() {
         this.stackFrames.add(new Frame(new HashMap<>()));
@@ -33,13 +24,15 @@ public record StackMap(
             var previousType = this.getLocalVariable(name);
             assert previousType.type().equals(varType);
         } catch (Exception e) {
-            this.stackFrames.getLast().localVariables().put(name, new VariableData(varType, allocaPtr));
+            this.stackFrames.getLast()
+                .localVariables()
+                .put(name, new VariableData(varType, allocaPtr));
         }
     }
 
     public boolean hasLocalVariable(String name) {
-        for(var frame : this.stackFrames) {
-            if(frame.localVariables.containsKey(name)) {
+        for (var frame : this.stackFrames) {
+            if (frame.localVariables.containsKey(name)) {
                 return true;
             }
         }
@@ -48,11 +41,13 @@ public record StackMap(
 
     /// @throws RuntimeException If the variable is not defined
     public VariableData getLocalVariable(String name) {
-        for(var frame : this.stackFrames) {
-            if(frame.localVariables.containsKey(name)) {
+        for (var frame : this.stackFrames) {
+            if (frame.localVariables.containsKey(name)) {
                 return frame.localVariables.get(name);
             }
         }
-        throw new RuntimeException("Unable to infer type of local variable " + name);
+        throw new RuntimeException(
+            "Unable to infer type of local variable " + name
+        );
     }
 }

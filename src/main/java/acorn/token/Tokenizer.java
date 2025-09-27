@@ -1,25 +1,29 @@
 package acorn.token;
 
 import acorn.reader.Reader;
-
 import java.util.ArrayList;
 import java.util.List;
 
 public class Tokenizer {
+
     Reader<String, Character> stringReader;
     List<Token> tokens = new ArrayList<>();
 
     public static Tokenizer create(String source) {
         var t = new Tokenizer();
-        t.stringReader = Reader.create(source + "\n\n\n", String::charAt, String::length);
+        t.stringReader = Reader.create(
+            source + "\n\n\n",
+            String::charAt,
+            String::length
+        );
         return t;
     }
 
     public List<Token> tokenize() {
-        while(stringReader.hasNext()) {
+        while (stringReader.hasNext()) {
             try {
                 var token = tokenizeOnce();
-                if(token != null) {
+                if (token != null) {
                     this.tokens.add(token);
                 }
             } catch (Exception ignored) {
@@ -30,18 +34,18 @@ public class Tokenizer {
     }
 
     public Token tokenizeOnce() {
-        if(!stringReader.hasNext()) {
+        if (!stringReader.hasNext()) {
             return null;
         }
 
         this.skipWhitespace();
 
-        if(stringReader.peek() == 'c' && stringReader.peek(1) == '"') {
+        if (stringReader.peek() == 'c' && stringReader.peek(1) == '"') {
             stringReader.next();
             stringReader.next();
 
             var sb = new StringBuilder();
-            while(stringReader.peek() != '"') {
+            while (stringReader.peek() != '"') {
                 sb.append(stringReader.next());
             }
             stringReader.next();
@@ -50,9 +54,12 @@ public class Tokenizer {
         }
 
         // tokenize identifiers
-        if(Character.isJavaIdentifierStart(stringReader.peek())) {
+        if (Character.isJavaIdentifierStart(stringReader.peek())) {
             var sb = new StringBuilder();
-            while(Character.isJavaIdentifierPart(stringReader.peek()) || stringReader.peek() == ':') {
+            while (
+                Character.isJavaIdentifierPart(stringReader.peek()) ||
+                stringReader.peek() == ':'
+            ) {
                 sb.append(stringReader.next());
             }
             var str = sb.toString();
@@ -68,23 +75,26 @@ public class Tokenizer {
         }
 
         // tokenize numbers
-        if(Character.isDigit(stringReader.peek())) {
+        if (Character.isDigit(stringReader.peek())) {
             var sb = new StringBuilder();
-            while(Character.isDigit(stringReader.peek()) || stringReader.peek() == '.') {
+            while (
+                Character.isDigit(stringReader.peek()) ||
+                stringReader.peek() == '.'
+            ) {
                 sb.append(stringReader.next());
             }
             var str = sb.toString();
-            if(str.contains(".")) {
+            if (str.contains(".")) {
                 return new Token.Floating(Double.parseDouble(str));
             } else {
                 return new Token.Integer(Integer.parseInt(str));
             }
         }
 
-        if(stringReader.peek() == '"') {
+        if (stringReader.peek() == '"') {
             var sb = new StringBuilder();
             stringReader.next();
-            while(stringReader.peek() != '"') {
+            while (stringReader.peek() != '"') {
                 sb.append(stringReader.next());
             }
             stringReader.next();
@@ -117,7 +127,7 @@ public class Tokenizer {
 
     public void skipWhitespace() {
         var ch = stringReader.peek();
-        while(ch != null && Character.isWhitespace(ch)) {
+        while (ch != null && Character.isWhitespace(ch)) {
             stringReader.next();
             ch = stringReader.peek();
         }

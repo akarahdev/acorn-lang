@@ -5,11 +5,10 @@ import acorn.parser.ctx.FunctionRecord;
 import acorn.parser.ctx.GlobalContext;
 import acorn.parser.ctx.StackMap;
 import acorn.parser.ctx.StructRecord;
-import llvm4j.module.Module;
-import llvm4j.module.value.Identifier;
-
 import java.util.ArrayList;
 import java.util.List;
+import llvm4j.module.Module;
+import llvm4j.module.value.Identifier;
 
 public sealed interface Header {
     void preprocess(GlobalContext context);
@@ -17,36 +16,49 @@ public sealed interface Header {
 
     record Parameter(String name, AstType type) {}
 
-    record TypeAlias(String name, AstType type, List<Annotation> annotations) implements Header {
+    record TypeAlias(
+        String name,
+        AstType type,
+        List<Annotation> annotations
+    ) implements Header {
         @Override
         public void preprocess(GlobalContext context) {
-            context.typeAliases().put(
-                    name,
-                    this.type
-            );
+            context.typeAliases().put(name, this.type);
         }
 
         @Override
-        public void emit(Module.Builder builder, GlobalContext context) {
-
-        }
+        public void emit(Module.Builder builder, GlobalContext context) {}
     }
 
-    record Function(String name, AstType returnType, List<Parameter> parameters, List<Statement> statements, List<Annotation> annotations) implements Header {
+    record Function(
+        String name,
+        AstType returnType,
+        List<Parameter> parameters,
+        List<Statement> statements,
+        List<Annotation> annotations
+    ) implements Header {
         @Override
         public void preprocess(GlobalContext context) {
             boolean varargs = false;
             String mangling = this.name.replace("::", "__");
 
-            for(var annotation : this.annotations) {
+            for (var annotation : this.annotations) {
                 switch (annotation.name()) {
                     case "varargs" -> varargs = true;
-                    case "mangle_as" -> mangling = ((Expression.StringValue) annotation.values().getFirst()).value();
+                    case "mangle_as" -> mangling =
+                        ((Expression.StringValue) annotation
+                                .values()
+                                .getFirst()).value();
                 }
             }
             boolean finalVarargs = varargs;
 
-            context.functions().put(this.name, new FunctionRecord(mangling, finalVarargs, this));
+            context
+                .functions()
+                .put(
+                    this.name,
+                    new FunctionRecord(mangling, finalVarargs, this)
+                );
         }
 
         @Override
@@ -54,41 +66,59 @@ public sealed interface Header {
             var varargs = context.functions().get(this.name).varargs();
             var mangling = context.functions().get(this.name).mangling();
 
-            builder.withFunction(
-                    Identifier.global(mangling),
-                    fb -> {
-                        fb.withReturnType(this.returnType.toType(context));
-                        if(varargs) {
-                            fb.withVarargs();
-                        }
-                        for(var parameter : this.parameters) {
-                            fb.withParameter(Identifier.local(parameter.name()).parameterized(parameter.type().toType(context)));
-                        }
-                        if(statements != null) {
-                            fb.withCode(bb -> {
-                                var sm = new StackMap(new ArrayList<>());
-                                var cg = new CodeGenerator(context, builder, fb, bb, sm);
+            builder.withFunction(Identifier.global(mangling), fb -> {
+                fb.withReturnType(this.returnType.toType(context));
+                if (varargs) {
+                    fb.withVarargs();
+                }
+                for (var parameter : this.parameters) {
+                    fb.withParameter(
+                        Identifier.local(parameter.name()).parameterized(
+                            parameter.type().toType(context)
+                        )
+                    );
+                }
+                if (statements != null) {
+                    fb.withCode(bb -> {
+                        var sm = new StackMap(new ArrayList<>());
+                        var cg = new CodeGenerator(
+                            context,
+                            builder,
+                            fb,
+                            bb,
+                            sm
+                        );
 
-                                sm.pushFrame();
+                        sm.pushFrame();
 
-                                for(var parameter : this.parameters) {
-                                    var paramSlot = bb.alloca(parameter.type().toType(context));
-                                    var paramValue = Identifier.local(parameter.name());
-                                    bb.store(paramValue.typed(parameter.type().toType(context)), paramSlot);
-                                    sm.storeVariable(parameter.name(), paramSlot, parameter.type());
-                                }
-                                sm.pushFrame();
-                                for(var statement : this.statements) {
-                                    statement.compile(cg);
-                                }
-                                sm.popFrame();
-                                sm.popFrame();
-                                return bb;
-                            });
+                        for (var parameter : this.parameters) {
+                            var paramSlot = bb.alloca(
+                                parameter.type().toType(context)
+                            );
+                            var paramValue = Identifier.local(parameter.name());
+                            bb.store(
+                                paramValue.typed(
+                                    parameter.type().toType(context)
+                                ),
+                                paramSlot
+                            );
+                            sm.storeVariable(
+                                parameter.name(),
+                                paramSlot,
+                                parameter.type()
+                            );
                         }
-                        return fb;
-                    }
-            );
+                        sm.pushFrame();
+                        for (var statement : this.statements) {
+                            statement.compile(cg);
+                        }
+                        sm.popFrame();
+                        sm.popFrame();
+                        return bb;
+                    });
+                }
+                return fb;
+            });
         }
     }
 }
