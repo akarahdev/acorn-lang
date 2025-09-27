@@ -38,3 +38,7 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Dev Environment ###
+playground/
+playground.sh

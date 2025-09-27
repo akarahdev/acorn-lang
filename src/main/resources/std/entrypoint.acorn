@@ -1,4 +1,4 @@
 @mangle_as("main")
 fn _launchpad() -> unbox i32 {
-    return unbox(entry())
+    return unbox(main())
 }

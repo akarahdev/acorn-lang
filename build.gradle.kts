@@ -17,6 +17,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("com.github.akarahdev:llvm4j:0691352")
+    implementation("info.picocli:picocli:4.7.7")
 }
 
 tasks.test { useJUnitPlatform() }
@@ -29,4 +30,5 @@ java {
 
 application {
     mainClass = "acorn.Main"
+    tasks.run.get().workingDir = File("./playground/")
 }

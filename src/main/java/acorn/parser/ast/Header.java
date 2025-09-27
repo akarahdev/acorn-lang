@@ -6,6 +6,7 @@ import acorn.parser.ctx.GlobalContext;
 import acorn.parser.ctx.StackMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import llvm4j.module.Module;
 import llvm4j.module.value.Identifier;
 
@@ -36,10 +37,27 @@ public sealed interface Header {
         List<Statement> statements,
         List<Annotation> annotations
     ) implements Header {
+        public static String mangleSafely(String string) {
+            return string
+                .replace("(", "_op_")
+                .replace(")", "_cl_")
+                .replace(",", "_sep_")
+                .replace(":", "_");
+        }
+
         @Override
         public void preprocess(GlobalContext context) {
             boolean varargs = false;
-            String mangling = this.name.replace("::", "__");
+            String mangling = mangleSafely(
+                "acorn_coded::" +
+                    this.name +
+                    "(" +
+                    this.parameters.stream()
+                        .map(p -> p.type.typeName())
+                        .collect(Collectors.joining(",")) +
+                    ")::" +
+                    this.returnType.typeName()
+            );
 
             for (var annotation : this.annotations) {
                 switch (annotation.name()) {
