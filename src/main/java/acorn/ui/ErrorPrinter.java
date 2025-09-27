@@ -23,5 +23,6 @@ public class ErrorPrinter {
         System.out.println(
             e.getSpan().fileName().trim() + " @ " + e.getSpan().location().row()
         );
+        e.printStackTrace();
     }
 }

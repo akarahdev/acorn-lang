@@ -133,6 +133,40 @@ public sealed interface Expression {
         }
     }
 
+    record PathAccess(Expression left, String right, SpanData span) implements
+        Expression {
+        @Override
+        public Value compileInnerValue(CodeGenerator builder) {
+            return this.convertIntoVariable().compileInnerValue(builder);
+        }
+
+        public Variable convertIntoVariable() {
+            if (left instanceof Variable variable) {
+                return new Variable(
+                    variable.name() + "::" + this.right(),
+                    variable.span()
+                );
+            }
+            if (left instanceof PathAccess pathAccess) {
+                return new Variable(
+                    pathAccess.convertIntoVariable().name() +
+                        "::" +
+                        this.right(),
+                    pathAccess.span()
+                );
+            }
+            throw new SpannedException(
+                this.span(),
+                new SpannedException.ErrorType.NotValidPath()
+            );
+        }
+
+        @Override
+        public AstType inferType(CodeGenerator builder) {
+            return this.convertIntoVariable().inferType(builder);
+        }
+    }
+
     record Invocation(
         Expression functionPointer,
         List<Expression> args,

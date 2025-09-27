@@ -63,10 +63,14 @@ public class Parser {
         return new Header.Parameter(name.name(), type);
     }
 
-    public List<Header> parseHeaders() {
+    public List<Header> parseHeaders(boolean root) {
         var list = new ArrayList<Header>();
 
-        while (this.reader.hasNext()) {
+        while (
+            root
+                ? this.reader.hasNext()
+                : !(this.reader.peek() instanceof Token.CloseBrace)
+        ) {
             var annotations = parseAnnotations();
             var peek = this.reader.peek();
             switch (peek) {
@@ -74,10 +78,17 @@ public class Parser {
                 case Token.TypeKeyword _ -> list.add(
                     parseTypeAlias(annotations)
                 );
+                case Token.NamespaceKeyword _ -> list.add(
+                    parseNamespace(annotations)
+                );
                 default -> throw new SpannedException(
                     peek.span(),
                     new SpannedException.ErrorType.UnexpectedToken(
-                        List.of(Token.FnKeyword.class, Token.TypeKeyword.class),
+                        List.of(
+                            Token.FnKeyword.class,
+                            Token.TypeKeyword.class,
+                            Token.NamespaceKeyword.class
+                        ),
                         peek.getClass()
                     )
                 );
@@ -112,6 +123,21 @@ public class Parser {
             returnType,
             params,
             body,
+            annotations,
+            name.span()
+        );
+    }
+
+    public Header.Namespace parseNamespace(List<Annotation> annotations) {
+        this.reader.expect(Token.NamespaceKeyword.class);
+        var name = this.reader.expect(Token.Identifier.class);
+        this.reader.expect(Token.OpenBrace.class);
+        var headers = this.parseHeaders(false);
+        this.reader.expect(Token.CloseBrace.class);
+
+        return new Header.Namespace(
+            name.name(),
+            headers,
             annotations,
             name.span()
         );
@@ -239,6 +265,15 @@ public class Parser {
                     bracket.span()
                 );
                 this.reader.expect(Token.CloseBracket.class);
+            } else if (this.reader.peek() instanceof Token.Colon _) {
+                var colon1 = this.reader.expect(Token.Colon.class);
+                this.reader.expect(Token.Colon.class);
+                var ident = this.reader.expect(Token.Identifier.class);
+                expr = new Expression.PathAccess(
+                    expr,
+                    ident.name(),
+                    colon1.span()
+                );
             } else {
                 break;
             }
@@ -346,19 +381,47 @@ public class Parser {
         }
         if (this.reader.peek() instanceof Token.UnboxKeyword) {
             this.reader.next();
-            return parseUnboxedType(null);
+            var ty = parseType();
+            if (ty instanceof AstType.Boxed boxed) {
+                return boxed.type();
+            }
+            return ty;
         }
-        var name = this.reader.expect(Token.Identifier.class);
-        if (name.name().equals("void")) {
-            return new AstType.Void(name.span());
+        if (this.reader.peek() instanceof Token.Identifier _) {
+            var fieldAccess = parseFieldAccess();
+            switch (fieldAccess) {
+                case Expression.PathAccess path -> {
+                    return new AstType.Boxed(
+                        parseVariableType(path.convertIntoVariable())
+                    );
+                }
+                case Expression.Variable var -> {
+                    if (var.name().equals("void")) {
+                        return new AstType.Void(var.span());
+                    }
+                    return new AstType.Boxed(parseVariableType(var));
+                }
+                default -> throw new SpannedException(
+                    fieldAccess.span(),
+                    new SpannedException.ErrorType.NotValidPath()
+                );
+            }
         }
-        return new AstType.Boxed(parseUnboxedType(name));
+        throw new SpannedException(
+            this.reader.peek().span(),
+            new SpannedException.ErrorType.UnexpectedToken(
+                List.of(
+                    Token.OpenBracket.class,
+                    Token.OpenBrace.class,
+                    Token.UnboxKeyword.class,
+                    Token.Identifier.class
+                ),
+                this.reader.peek().getClass()
+            )
+        );
     }
 
-    public AstType parseUnboxedType(Token.Identifier name) {
-        if (name == null) {
-            name = this.reader.expect(Token.Identifier.class);
-        }
+    public AstType parseVariableType(Expression.Variable name) {
         if (name.name().startsWith("i")) {
             var replaced = name.name().replace("i", "");
             try {
@@ -366,7 +429,7 @@ public class Parser {
                 return new AstType.Integer(bits, name.span());
             } catch (Exception ignored) {}
         }
-        if (name.name().equals("libc::ptr")) {
+        if (name.name().equals("c_pointer")) {
             return new AstType.LibCPointer(name.span());
         }
         return new AstType.Unresolved(name.name(), name.span());

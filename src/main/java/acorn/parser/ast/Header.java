@@ -12,10 +12,35 @@ import llvm4j.module.Module;
 import llvm4j.module.value.Identifier;
 
 public sealed interface Header {
-    void preprocess(GlobalContext context);
-    void emit(Module.Builder builder, GlobalContext context);
+    void preprocess(GlobalContext context, String namespace);
+    void emit(Module.Builder builder, GlobalContext context, String namespace);
 
     record Parameter(String name, AstType type) {}
+
+    record Namespace(
+        String name,
+        List<Header> headers,
+        List<Annotation> annotations,
+        SpanData span
+    ) implements Header {
+        @Override
+        public void preprocess(GlobalContext context, String namespace) {
+            for (var header : headers) {
+                header.preprocess(context, namespace + this.name + "::");
+            }
+        }
+
+        @Override
+        public void emit(
+            Module.Builder builder,
+            GlobalContext context,
+            String namespace
+        ) {
+            for (var header : headers) {
+                header.emit(builder, context, namespace + this.name + "::");
+            }
+        }
+    }
 
     record TypeAlias(
         String name,
@@ -24,12 +49,16 @@ public sealed interface Header {
         SpanData span
     ) implements Header {
         @Override
-        public void preprocess(GlobalContext context) {
-            context.typeAliases().put(name, this.type);
+        public void preprocess(GlobalContext context, String namespace) {
+            context.typeAliases().put(namespace + name, this.type);
         }
 
         @Override
-        public void emit(Module.Builder builder, GlobalContext context) {}
+        public void emit(
+            Module.Builder builder,
+            GlobalContext context,
+            String namespace
+        ) {}
     }
 
     record Function(
@@ -49,10 +78,11 @@ public sealed interface Header {
         }
 
         @Override
-        public void preprocess(GlobalContext context) {
+        public void preprocess(GlobalContext context, String namespace) {
             boolean varargs = false;
             String mangling = mangleSafely(
                 "acorn_coded::" +
+                    namespace +
                     this.name +
                     "(" +
                     this.parameters.stream()
@@ -76,15 +106,25 @@ public sealed interface Header {
             context
                 .functions()
                 .put(
-                    this.name,
+                    namespace + this.name,
                     new FunctionRecord(mangling, finalVarargs, this, this.span)
                 );
         }
 
         @Override
-        public void emit(Module.Builder builder, GlobalContext context) {
-            var varargs = context.functions().get(this.name).varargs();
-            var mangling = context.functions().get(this.name).mangling();
+        public void emit(
+            Module.Builder builder,
+            GlobalContext context,
+            String namespace
+        ) {
+            var varargs = context
+                .functions()
+                .get(namespace + this.name)
+                .varargs();
+            var mangling = context
+                .functions()
+                .get(namespace + this.name)
+                .mangling();
 
             builder.withFunction(Identifier.global(mangling), fb -> {
                 fb.withReturnType(this.returnType.toType(context));

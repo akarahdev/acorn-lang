@@ -13,6 +13,8 @@ public interface Token {
 
     record String(java.lang.String value, SpanData span) implements Token {}
 
+    record NamespaceKeyword(SpanData span) implements Token {}
+
     record FnKeyword(SpanData span) implements Token {}
 
     record ArrayKeyword(SpanData span) implements Token {}
@@ -56,4 +58,6 @@ public interface Token {
     record Star(SpanData span) implements Token {}
 
     record Slash(SpanData span) implements Token {}
+
+    record Colon(SpanData span) implements Token {}
 }

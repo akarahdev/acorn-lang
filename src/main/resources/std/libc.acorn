@@ -1,6 +1,10 @@
-@mangle_as("malloc")
-fn libc::malloc(size unbox i64) -> unbox libc::ptr
+namespace libc {
+    type ptr = c_pointer
 
-@mangle_as("printf")
-@varargs
-fn libc::printf(print_string unbox libc::ptr) -> unbox i32
+    @mangle_as("malloc")
+    fn malloc(size unbox i64) -> unbox libc::ptr
+
+    @mangle_as("printf")
+    @varargs
+    fn printf(print_string unbox libc::ptr) -> unbox i32
+}

@@ -93,7 +93,7 @@ public class CLI implements Runnable {
 
             var parser = Parser.create(tokenArray);
 
-            return parser.parseHeaders();
+            return parser.parseHeaders(true);
         } catch (SpannedException e) {
             ErrorPrinter.print(e);
             System.exit(1);
@@ -107,8 +107,8 @@ public class CLI implements Runnable {
         try {
             var ctx = GlobalContext.create();
             var module = Module.builder();
-            this.headers.forEach(x -> x.preprocess(ctx));
-            this.headers.forEach(x -> x.emit(module, ctx));
+            this.headers.forEach(x -> x.preprocess(ctx, ""));
+            this.headers.forEach(x -> x.emit(module, ctx, ""));
 
             try {
                 var outFile = Paths.get("./build/output.ll");

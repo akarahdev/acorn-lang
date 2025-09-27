@@ -79,6 +79,13 @@ public class SpannedException extends RuntimeException {
             }
         }
 
+        record NotValidPath() implements ErrorType {
+            @Override
+            public String message() {
+                return "Paths must be comprised of valid identifiers.";
+            }
+        }
+
         record WrongType(List<AstType> expected, AstType found) implements
             ErrorType {
             @Override

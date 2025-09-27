@@ -62,10 +62,7 @@ public class Tokenizer {
         // tokenize identifiers
         if (Character.isJavaIdentifierStart(stringReader.peek())) {
             var sb = new StringBuilder();
-            while (
-                Character.isJavaIdentifierPart(stringReader.peek()) ||
-                stringReader.peek() == ':'
-            ) {
+            while (Character.isJavaIdentifierPart(stringReader.peek())) {
                 sb.append(stringReader.next());
             }
             var str = sb.toString();
@@ -76,6 +73,9 @@ public class Tokenizer {
                 case "box" -> new Token.BoxKeyword(this.createSpanData());
                 case "unbox" -> new Token.UnboxKeyword(this.createSpanData());
                 case "struct" -> new Token.StructKeyword(this.createSpanData());
+                case "namespace" -> new Token.NamespaceKeyword(
+                    this.createSpanData()
+                );
                 default -> new Token.Identifier(
                     sb.toString(),
                     this.createSpanData()
@@ -136,6 +136,7 @@ public class Tokenizer {
             case ',' -> new Token.Comma(this.createSpanData());
             case '=' -> new Token.Equals(this.createSpanData());
             case '.' -> new Token.Period(this.createSpanData());
+            case ':' -> new Token.Colon(this.createSpanData());
             default -> null;
         };
     }
